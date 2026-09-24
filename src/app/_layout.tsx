@@ -1,25 +1,66 @@
-import { Stack } from 'expo-router';
+import React from 'react';
+import { Tabs } from 'expo-router';
 
-export default function RootLayout() {
+export default function TabLayout() {
   return (
-    <Stack>
-      <Stack.Screen
-        name="index"
-        options={{ headerShown: false }}
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          display: 'none',
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="home"
+        options={{ title: 'Home' }}
       />
 
-      <Stack.Screen
+      <Tabs.Screen
+        name="medicines"
+        options={{ title: 'Medicines' }}
+      />
+
+      <Tabs.Screen
+        name="appointments"
+        options={{ title: 'Appointments' }}
+      />
+
+      <Tabs.Screen
+        name="profile"
+        options={{ title: 'Profile' }}
+      />
+
+      {/* Hidden screens */}
+      <Tabs.Screen
+        name="index"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
+        name="hospitals"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
+        name="scan"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
         name="register"
-        options={{ headerShown: false }}
+        options={{ href: null }}
       />
-      <Stack.Screen
-  name="home"
-  options={{ headerShown: false }}
-/>
-<Stack.Screen
+
+      <Tabs.Screen
         name="welcome"
-        options={{ headerShown: false }}
+        options={{ href: null }}
       />
-    </Stack>
+
+      <Tabs.Screen
+        name="explore"
+        options={{ href: null }}
+      />
+    </Tabs>
   );
 }

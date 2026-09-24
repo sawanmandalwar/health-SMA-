@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
@@ -201,11 +202,12 @@ export default function HomeScreen() {
                 color={COLORS.text}
               />
 
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  S
-                </Text>
-              </View>
+            <Pressable
+  onPress={() => router.push('/profile')}
+  style={styles.avatar}
+>
+  <Text style={styles.avatarText}>S</Text>
+</Pressable>
 
             </View>
 
