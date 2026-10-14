@@ -33,6 +33,10 @@ import {
 } from '@expo-google-fonts/inter';
 
 import { useFonts } from 'expo-font';
+import {
+  replaceMedicineReminder,
+  cancelMedicineRemindersForMedicine,
+} from '../services/notificationService';
 
 
 // ======================================================
@@ -77,8 +81,7 @@ const COLORS = {
 const MEDICINES_STORAGE_KEY =
   '@health_saathi_medicines';
 
-const HISTORY_STORAGE_KEY =
-  '@health_saathi_medicine_history';
+const API_URL = 'http://10.170.142.154:5000';
 
 
 // ======================================================
@@ -111,91 +114,6 @@ type Medicine = {
   status: MedicineStatus;
 };
 
-
-type HistoryItem = {
-  id: string;
-
-  medicineId: string;
-
-  medicineName: string;
-
-  dosage: string;
-
-  time: string;
-
-  status: 'Taken' | 'Missed';
-
-  date: string;
-
-  timestamp: number;
-};
-
-
-// ======================================================
-// DEFAULT MEDICINES
-// ======================================================
-
-const DEFAULT_MEDICINES: Medicine[] = [
-  {
-    id: '1',
-
-    name: 'Metformin',
-
-    dosage: '500mg',
-
-    timing: 'After Breakfast',
-
-    time: '8:00 AM',
-
-    frequency: 'Once Daily',
-
-    startDate: '10 September 2026',
-
-    endDate: '10 October 2026',
-
-    status: 'Taken',
-  },
-
-  {
-    id: '2',
-
-    name: 'Amlodipine',
-
-    dosage: '5mg',
-
-    timing: 'After Lunch',
-
-    time: '2:00 PM',
-
-    frequency: 'Once Daily',
-
-    startDate: '10 September 2026',
-
-    endDate: '10 October 2026',
-
-    status: 'Pending',
-  },
-
-  {
-    id: '3',
-
-    name: 'Atorvastatin',
-
-    dosage: '10mg',
-
-    timing: 'Before Sleep',
-
-    time: '9:00 PM',
-
-    frequency: 'Once Daily',
-
-    startDate: '10 September 2026',
-
-    endDate: '10 October 2026',
-
-    status: 'Pending',
-  },
-];
 
 
 // ======================================================
@@ -255,7 +173,7 @@ export default function MedicinesScreen() {
   // ====================================================
 
   const [medicines, setMedicines] =
-    useState<Medicine[]>(DEFAULT_MEDICINES);
+    useState<Medicine[]>([]);
 
   const [filter, setFilter] =
     useState<
@@ -297,89 +215,87 @@ export default function MedicinesScreen() {
 
 
   // ====================================================
-  // LOAD MEDICINES
+  // LOAD MEDICINES FROM MONGODB
   // ====================================================
 
   useEffect(() => {
-
     loadMedicines();
-
   }, []);
 
-
   const loadMedicines = async () => {
-
     try {
+      const token = await AsyncStorage.getItem('authToken');
 
-      const saved =
-        await AsyncStorage.getItem(
-          MEDICINES_STORAGE_KEY
-        );
-
-
-      if (saved) {
-
-        const parsed =
-          JSON.parse(saved);
-
-
-        if (Array.isArray(parsed)) {
-
-          setMedicines(parsed);
-
-        }
-
-      } else {
-
-        await AsyncStorage.setItem(
-          MEDICINES_STORAGE_KEY,
-          JSON.stringify(
-            DEFAULT_MEDICINES
-          )
-        );
-
+      if (!token) {
+        Alert.alert('Login Required', 'Please login again.');
+        router.replace('/');
+        return;
       }
 
-    } catch (error) {
+      const response = await fetch(`${API_URL}/api/medicines`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
-      console.log(
-        'Medicine loading error:',
-        error
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to load medicines');
+      }
+
+      const serverMedicines = Array.isArray(data.medicines)
+        ? data.medicines
+        : Array.isArray(data)
+        ? data
+        : [];
+
+      const formattedMedicines: Medicine[] = serverMedicines.map(
+        (item: any) => ({
+          id: item._id || item.id,
+          name: item.name || '',
+          dosage: item.dosage || '',
+          timing: item.timing || '',
+          time: item.time || '',
+          frequency: item.frequency || 'Once Daily',
+          startDate: item.startDate || '',
+          endDate: item.endDate || '',
+          status: item.status || 'Pending',
+        })
       );
 
-    }
+      setMedicines(formattedMedicines);
 
-  };
+      // Sync reminders for medicines already saved in MongoDB.
+      // replaceMedicineReminder cancels old scheduled instances first,
+      // so reopening/reloading this screen does not create duplicates.
+      for (const medicine of formattedMedicines) {
+        if (!medicine.id) continue;
 
-
-  // ====================================================
-  // SAVE MEDICINES
-  // ====================================================
-
-  const saveMedicinesToStorage =
-    async (
-      updatedMedicines: Medicine[]
-    ) => {
-
-      try {
-
-        await AsyncStorage.setItem(
-          MEDICINES_STORAGE_KEY,
-          JSON.stringify(
-            updatedMedicines
-          )
-        );
-
-      } catch (error) {
-
-        console.log(
-          'Medicine save error:',
-          error
-        );
-
+        try {
+          await replaceMedicineReminder({
+            _id: medicine.id,
+            name: medicine.name,
+            dosage: medicine.dosage,
+            timing: medicine.timing,
+            time: medicine.time,
+            frequency: medicine.frequency,
+            startDate: medicine.startDate,
+            endDate: medicine.endDate,
+          });
+        } catch (reminderError) {
+          console.error(
+            `Reminder sync failed for ${medicine.name}:`,
+            reminderError
+          );
+        }
       }
-
-    };
+    } catch (error) {
+      console.log('Medicine loading error:', error);
+      Alert.alert('Error', 'Unable to load medicines from server.');
+    }
+  };
 
 
   // ====================================================
@@ -470,169 +386,162 @@ export default function MedicinesScreen() {
   // ====================================================
 
   const saveMedicine = async () => {
-
     if (
       !medicineName.trim() ||
       !dosage.trim() ||
       !timing.trim() ||
       !time.trim()
     ) {
-
       Alert.alert(
         'Missing Information',
         'Please fill Medicine Name, Dosage, Timing and Time.'
       );
-
       return;
-
     }
 
+    try {
+      const token = await AsyncStorage.getItem('authToken');
 
-    if (editingId) {
+      if (!token) {
+        Alert.alert('Login Required', 'Please login again.');
+        router.replace('/');
+        return;
+      }
 
-      const updated =
-        medicines.map(
-          medicine =>
-            medicine.id === editingId
-              ? {
-                  ...medicine,
-
-                  name:
-                    medicineName.trim(),
-
-                  dosage:
-                    dosage.trim(),
-
-                  timing:
-                    timing.trim(),
-
-                  time:
-                    time.trim(),
-
-                  frequency,
-
-                  startDate:
-                    startDate.trim(),
-
-                  endDate:
-                    endDate.trim(),
-                }
-              : medicine
-        );
-
-
-      setMedicines(updated);
-
-      await saveMedicinesToStorage(
-        updated
-      );
-
-    } else {
-
-      const newMedicine: Medicine = {
-
-        id:
-          Date.now().toString(),
-
-        name:
-          medicineName.trim(),
-
-        dosage:
-          dosage.trim(),
-
-        timing:
-          timing.trim(),
-
-        time:
-          time.trim(),
-
+      const medicineData = {
+        name: medicineName.trim(),
+        dosage: dosage.trim(),
+        timing: timing.trim(),
+        time: time.trim(),
         frequency,
-
-        startDate:
-          startDate.trim(),
-
-        endDate:
-          endDate.trim(),
-
-        status:
-          'Pending',
-
+        startDate: startDate.trim(),
+        endDate: endDate.trim(),
       };
 
+      const url = editingId
+        ? `${API_URL}/api/medicines/${editingId}`
+        : `${API_URL}/api/medicines`;
 
-      const updated = [
-        ...medicines,
+      const response = await fetch(url, {
+        method: editingId ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(medicineData),
+      });
 
-        newMedicine,
-      ];
+      const data = await response.json();
 
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to save medicine');
+      }
 
-      setMedicines(updated);
+      // Schedule or replace the local reminder after MongoDB saves the medicine.
+      // This safely does nothing in the browser; native scheduling is for Android/iOS.
+      if (data.medicine) {
+        try {
+          await replaceMedicineReminder({
+            _id: data.medicine._id || data.medicine.id,
+            name: data.medicine.name || medicineData.name,
+            dosage: data.medicine.dosage || medicineData.dosage,
+            timing: data.medicine.timing || medicineData.timing,
+            time: data.medicine.time || medicineData.time,
+            frequency: data.medicine.frequency || medicineData.frequency,
+            startDate: data.medicine.startDate ?? medicineData.startDate,
+            endDate: data.medicine.endDate ?? medicineData.endDate,
+          });
+        } catch (reminderError) {
+          // A reminder scheduling issue should not undo a successfully saved medicine.
+          console.log('Medicine saved, but reminder scheduling failed:', reminderError);
+        }
+      }
 
-      await saveMedicinesToStorage(
-        updated
+      await loadMedicines();
+
+      setModalVisible(false);
+      resetForm();
+    } catch (error) {
+      console.log('Medicine save error:', error);
+      Alert.alert(
+        'Error',
+        error instanceof Error
+          ? error.message
+          : 'Unable to save medicine.'
       );
-
     }
-
-
-    setModalVisible(false);
-
-    resetForm();
-
   };
 
 
   // ====================================================
   // DELETE MEDICINE
-  // ====================================================
+// ====================================================
 
-  const deleteMedicine = (
-    id: string
-  ) => {
+const deleteMedicine = (id: string) => {
+  Alert.alert(
+    'Delete Medicine',
+    'Are you sure you want to delete this medicine?',
+    [
+      {
+        text: 'Cancel',
+        style: 'cancel',
+      },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const token = await AsyncStorage.getItem('authToken');
 
-    Alert.alert(
+            if (!token) {
+              Alert.alert('Login Required', 'Please login again.');
+              router.replace('/');
+              return;
+            }
 
-      'Delete Medicine',
-
-      'Are you sure you want to delete this medicine?',
-
-      [
-
-        {
-          text: 'Cancel',
-
-          style: 'cancel',
-        },
-
-        {
-          text: 'Delete',
-
-          style: 'destructive',
-
-          onPress: async () => {
-
-            const updated =
-              medicines.filter(
-                medicine =>
-                  medicine.id !== id
-              );
-
-
-            setMedicines(updated);
-
-            await saveMedicinesToStorage(
-              updated
+            const response = await fetch(
+              `${API_URL}/api/medicines/${id}`,
+              {
+                method: 'DELETE',
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
             );
 
-          },
+            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(
+                data.message || 'Unable to delete medicine'
+              );
+            }
+
+            // Cancel all scheduled reminders for this medicine.
+            await cancelMedicineRemindersForMedicine(id);
+
+            // Refresh the medicine list.
+            await loadMedicines();
+
+            Alert.alert(
+              'Success',
+              'Medicine and its scheduled reminders have been deleted.'
+            );
+          } catch (error) {
+            console.log('Medicine delete error:', error);
+
+            Alert.alert(
+              'Error',
+              error instanceof Error
+                ? error.message
+                : 'Unable to delete medicine.'
+            );
+          }
         },
-
-      ]
-
-    );
-
-  };
+      },
+    ]
+  );
+};
 
 
   // ====================================================
@@ -643,92 +552,38 @@ export default function MedicinesScreen() {
     medicine: Medicine,
     status: 'Taken' | 'Missed'
   ) => {
+    const token = await AsyncStorage.getItem('authToken');
 
-    try {
-
-      const saved =
-        await AsyncStorage.getItem(
-          HISTORY_STORAGE_KEY
-        );
-
-
-      let history: HistoryItem[] =
-        saved
-          ? JSON.parse(saved)
-          : [];
-
-
-      const now =
-        new Date();
-
-
-      const date =
-        now.toLocaleDateString(
-          'en-IN',
-          {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-          }
-        );
-
-
-      const historyItem: HistoryItem = {
-
-        id:
-          `${medicine.id}-${Date.now()}`,
-
-        medicineId:
-          medicine.id,
-
-        medicineName:
-          medicine.name,
-
-        dosage:
-          medicine.dosage,
-
-        time:
-          medicine.time,
-
-        status,
-
-        date,
-
-        timestamp:
-          Date.now(),
-
-      };
-
-
-      history = [
-        historyItem,
-
-        ...history,
-      ];
-
-
-      await AsyncStorage.setItem(
-
-        HISTORY_STORAGE_KEY,
-
-        JSON.stringify(history)
-
-      );
-
-
-      console.log(
-        'Medicine history saved'
-      );
-
-    } catch (error) {
-
-      console.log(
-        'History save error:',
-        error
-      );
-
+    if (!token) {
+      throw new Error('Authentication token not found. Please log in again.');
     }
 
+    const now = new Date();
+
+    const response = await fetch(`${API_URL}/api/history`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        medicineId: medicine.id,
+        medicineName: medicine.name,
+        dosage: medicine.dosage,
+        time: medicine.time,
+        status,
+        scheduledDate: now.toISOString(),
+        takenAt: status === 'Taken' ? now.toISOString() : null,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Unable to save medicine history.');
+    }
+
+    console.log('Medicine history saved to MongoDB');
   };
 
 
@@ -740,39 +595,56 @@ export default function MedicinesScreen() {
     medicine: Medicine,
     status: MedicineStatus
   ) => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
 
-    const updated =
-      medicines.map(
-        item =>
+      if (!token) {
+        Alert.alert('Login Required', 'Please login again.');
+        router.replace('/');
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/medicines/${medicine.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to update medicine status');
+      }
+
+      setMedicines((current) =>
+        current.map((item) =>
           item.id === medicine.id
-            ? {
-                ...item,
-
-                status,
-              }
+            ? { ...item, status }
             : item
+        )
       );
 
-
-    setMedicines(updated);
-
-    await saveMedicinesToStorage(
-      updated
-    );
-
-
-    if (
-      status === 'Taken' ||
-      status === 'Missed'
-    ) {
-
-      await addHistory(
-        medicine,
-        status
+      if (status === 'Taken' || status === 'Missed') {
+        await addHistory(
+          { ...medicine, status },
+          status
+        );
+      }
+    } catch (error) {
+      console.log('Medicine status update error:', error);
+      Alert.alert(
+        'Error',
+        error instanceof Error
+          ? error.message
+          : 'Unable to update medicine status.'
       );
-
     }
-
   };
 
 

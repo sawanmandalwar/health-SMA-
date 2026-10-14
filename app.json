@@ -7,9 +7,11 @@
     "icon": "./assets/images/icon.png",
     "scheme": "healthsaathimobile",
     "userInterfaceStyle": "automatic",
+
     "ios": {
       "icon": "./assets/expo.icon"
     },
+
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -17,12 +19,15 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.sawan_mandalwar.healthsaathimobile"
     },
+
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
+
     "plugins": [
       "expo-router",
       [
@@ -33,11 +38,25 @@
           "imageWidth": 76
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "medicine-reminders"
+        }
+      ]
     ],
+
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "678a8d68-89cf-410d-bf59-7d7b4e68cb57"
+      }
     }
   }
 }

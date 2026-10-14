@@ -13,8 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-
+import { router, useFocusEffect } from 'expo-router';
 const COLORS = {
   primaryBlue: '#1E76B6',
   darkBlue: '#155A8C',
@@ -30,6 +29,7 @@ const COLORS = {
 };
 
 const PROFILE_KEY = '@health_saathi_profile';
+const API_URL = 'http://10.170.142.154:5000';
 
 interface ProfileData {
   name: string;
@@ -43,9 +43,9 @@ interface ProfileData {
 }
 
 const defaultProfile: ProfileData = {
-  name: 'Sawan Mandalwar',
-  email: 'sawan@example.com',
-  phone: '+91 98765 43210',
+  name: '',
+  email: '',
+  phone: '',
   age: '',
   gender: '',
   bloodGroup: '',
@@ -61,8 +61,7 @@ export default function ProfileScreen() {
     useState<ProfileData>(defaultProfile);
 
   const [editing, setEditing] = useState(false);
-  const [notifications, setNotifications] =
-    useState(true);
+  const [notifications, setNotifications] = useState(true);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -70,41 +69,76 @@ export default function ProfileScreen() {
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('');
   const [bloodGroup, setBloodGroup] = useState('');
-  const [emergencyName, setEmergencyName] =
-    useState('');
-  const [emergencyPhone, setEmergencyPhone] =
-    useState('');
+  const [emergencyName, setEmergencyName] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
 
-  const [passwordModal, setPasswordModal] =
-    useState(false);
+  const [passwordModal, setPasswordModal] = useState(false);
 
-  const [currentPassword, setCurrentPassword] =
-    useState('');
-  const [newPassword, setNewPassword] =
-    useState('');
-  const [confirmPassword, setConfirmPassword] =
-    useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  useEffect(() => {
+useFocusEffect(
+  React.useCallback(() => {
     loadProfile();
-  }, []);
+
+    return () => {
+      // Nothing needed here
+    };
+  }, [])
+);
 
   const loadProfile = async () => {
     try {
-      const saved = await AsyncStorage.getItem(
-        PROFILE_KEY
-      );
+      const token = await AsyncStorage.getItem('authToken');
 
-      if (saved) {
-        const data = JSON.parse(saved);
-        setProfile(data);
-        setFormValues(data);
-      } else {
-        setFormValues(defaultProfile);
+      if (!token) {
+        Alert.alert('Login Required', 'Please login again.');
+        router.replace('/');
+        return;
       }
+
+      const response = await fetch(`${API_URL}/api/profile`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to load profile');
+      }
+
+      // Keep extra fields locally until they are added to the backend.
+      const saved = await AsyncStorage.getItem(PROFILE_KEY);
+      const localProfile = saved ? JSON.parse(saved) : {};
+
+      const updatedProfile: ProfileData = {
+        name: data.user.name || '',
+        email: data.user.email || '',
+        phone: data.user.phone || '',
+        age: localProfile.age || '',
+        gender: localProfile.gender || '',
+        bloodGroup: localProfile.bloodGroup || '',
+        emergencyName: localProfile.emergencyName || '',
+        emergencyPhone: localProfile.emergencyPhone || '',
+      };
+
+      setProfile(updatedProfile);
+      setFormValues(updatedProfile);
+
+      await AsyncStorage.setItem(
+        PROFILE_KEY,
+        JSON.stringify(updatedProfile)
+      );
     } catch (error) {
       console.log('Error loading profile:', error);
-      setFormValues(defaultProfile);
+      Alert.alert(
+        'Profile Error',
+        'Unable to load your profile from server.'
+      );
     }
   };
 
@@ -132,20 +166,51 @@ export default function ProfileScreen() {
     };
 
     if (!updatedProfile.name) {
-      Alert.alert(
-        'Name Required',
-        'Please enter your name.'
-      );
+      Alert.alert('Name Required', 'Please enter your name.');
       return;
     }
 
     try {
+      const token = await AsyncStorage.getItem('authToken');
+
+      if (!token) {
+        Alert.alert('Login Required', 'Please login again.');
+        router.replace('/');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: updatedProfile.name,
+          phone: updatedProfile.phone,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to update profile');
+      }
+
+      const finalProfile: ProfileData = {
+        ...updatedProfile,
+        name: data.user.name || updatedProfile.name,
+        email: data.user.email || updatedProfile.email,
+        phone: data.user.phone || updatedProfile.phone,
+      };
+
       await AsyncStorage.setItem(
         PROFILE_KEY,
-        JSON.stringify(updatedProfile)
+        JSON.stringify(finalProfile)
       );
 
-      setProfile(updatedProfile);
+      setProfile(finalProfile);
+      setFormValues(finalProfile);
       setEditing(false);
 
       Alert.alert(
@@ -153,9 +218,10 @@ export default function ProfileScreen() {
         'Your profile has been updated successfully.'
       );
     } catch (error) {
+      console.log('Update Profile Error:', error);
       Alert.alert(
-        'Error',
-        'Unable to save your profile.'
+        'Profile Error',
+        'Unable to update your profile.'
       );
     }
   };
@@ -205,24 +271,25 @@ export default function ProfileScreen() {
     );
   };
 
-  const logout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: () => {
-            router.replace('/');
-          },
-        },
-      ]
-    );
+  // =========================
+  // LOGOUT
+  // =========================
+  const logout = async () => {
+    console.log('LOGOUT BUTTON PRESSED');
+
+    try {
+      await AsyncStorage.removeItem('authToken');
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem(PROFILE_KEY);
+
+      router.replace('/');
+    } catch (error) {
+      console.log('Logout error:', error);
+      Alert.alert(
+        'Logout Error',
+        'Unable to logout. Please try again.'
+      );
+    }
   };
 
   const firstLetter =
@@ -237,7 +304,6 @@ export default function ProfileScreen() {
           isMobile && styles.mobileScrollContent,
         ]}
       >
-
         {/* PAGE HEADER */}
         <View
           style={[
@@ -528,7 +594,10 @@ export default function ProfileScreen() {
         {/* LOGOUT */}
         <Pressable
           onPress={logout}
-          style={styles.logoutButton}
+          style={({ pressed }) => [
+            styles.logoutButton,
+            pressed && styles.pressed,
+          ]}
         >
           <Ionicons
             name="log-out-outline"
@@ -540,7 +609,6 @@ export default function ProfileScreen() {
             Logout
           </Text>
         </Pressable>
-
       </ScrollView>
 
       {/* CHANGE PASSWORD MODAL */}
@@ -905,8 +973,6 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
   },
 
-  /* PAGE HEADER */
-
   pageHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -941,8 +1007,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  /* EDIT PROFILE BUTTON */
-
   editButton: {
     backgroundColor: COLORS.primaryBlue,
     borderRadius: 9,
@@ -971,8 +1035,6 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.75,
   },
-
-  /* PROFILE CARD */
 
   profileCard: {
     backgroundColor: COLORS.white,
@@ -1035,8 +1097,6 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
 
-  /* SECTION */
-
   sectionTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1059,8 +1119,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     marginBottom: 27,
   },
-
-  /* INFO */
 
   infoRow: {
     flexDirection: 'row',
@@ -1100,8 +1158,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  /* INPUT */
-
   inputContainer: {
     marginBottom: 15,
   },
@@ -1124,8 +1180,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     fontSize: 14,
   },
-
-  /* EDIT BUTTONS */
 
   editButtons: {
     flexDirection: 'row',
@@ -1168,8 +1222,6 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
 
-  /* SETTINGS */
-
   settingRow: {
     minHeight: 70,
     flexDirection: 'row',
@@ -1209,8 +1261,6 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
 
-  /* LOGOUT */
-
   logoutButton: {
     height: 52,
     borderRadius: 10,
@@ -1229,8 +1279,6 @@ const styles = StyleSheet.create({
     color: COLORS.dangerRed,
     marginLeft: 7,
   },
-
-  /* PASSWORD MODAL */
 
   overlay: {
     position: 'absolute',
@@ -1281,8 +1329,6 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 5,
   },
-
-  /* BOTTOM NAVIGATION */
 
   bottomNav: {
     position: 'absolute',

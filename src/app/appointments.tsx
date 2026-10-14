@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+const API_URL = 'http://10.170.142.154:5000';
 
 import {
   View,
@@ -93,36 +95,6 @@ type Appointment = {
 };
 
 
-// ====================================================
-// DEFAULT APPOINTMENTS
-// ====================================================
-
-const DEFAULT_APPOINTMENTS: Appointment[] = [
-  {
-    id: '1',
-    doctor: 'Dr. Rajesh Mehta',
-    specialty: 'Cardiologist',
-    hospital: 'City Care Hospital',
-    date: 'Friday, 12 September',
-    time: '11:30 AM',
-    reason: 'Routine Checkup',
-    reminder: true,
-    status: 'Upcoming',
-  },
-
-  {
-    id: '2',
-    doctor: 'Dr. Anjali Nair',
-    specialty: 'Dermatologist',
-    hospital: 'Sunrise Clinic',
-    date: 'Monday, 22 September',
-    time: '4:00 PM',
-    reason: 'Skin Allergy Follow-up',
-    reminder: true,
-    status: 'Upcoming',
-  },
-];
-
 
 // ====================================================
 // SCREEN
@@ -162,11 +134,8 @@ export default function AppointmentsScreen() {
   // ==================================================
   // APPOINTMENT STATE
   // ==================================================
-
-  const [appointments, setAppointments] =
-    useState<Appointment[]>(
-      DEFAULT_APPOINTMENTS
-    );
+const [appointments, setAppointments] =
+  useState<Appointment[]>([]);
 
 
   // ==================================================
@@ -239,6 +208,59 @@ export default function AppointmentsScreen() {
   };
 
 
+  // ==================================================
+  // LOAD APPOINTMENTS FROM BACKEND
+  // ==================================================
+
+  const loadAppointments = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+
+      if (!token) {
+        showToast('Please login again');
+        router.replace('/');
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/appointments`,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || 'Unable to load appointments'
+        );
+      }
+
+      const serverAppointments: Appointment[] =
+        (data.appointments || []).map((item: any) => ({
+          id: item._id,
+          doctor: item.doctor,
+          specialty: item.specialty,
+          hospital: item.hospital,
+          date: item.date,
+          time: item.time,
+          reason: item.reason,
+          reminder: item.reminder,
+          status: item.status,
+        }));
+
+      setAppointments(serverAppointments);
+    } catch (error) {
+      console.log('Appointment loading error:', error);
+      showToast('Unable to load appointments');
+    }
+  };
+
+
   useEffect(() => {
     if (!toastVisible) return;
 
@@ -248,6 +270,11 @@ export default function AppointmentsScreen() {
 
     return () => clearTimeout(timer);
   }, [toastVisible]);
+
+
+  useEffect(() => {
+    loadAppointments();
+  }, []);
 
 
   // ==================================================
@@ -312,142 +339,129 @@ export default function AppointmentsScreen() {
   // SAVE APPOINTMENT
   // ==================================================
 
-  const saveAppointment = () => {
+  const saveAppointment = async () => {
     if (!doctor.trim()) {
-      showToast(
-        'Please enter doctor name'
-      );
-
+      showToast('Please enter doctor name');
       return;
     }
 
     if (!specialty.trim()) {
-      showToast(
-        'Please enter specialty'
-      );
-
+      showToast('Please enter specialty');
       return;
     }
 
     if (!hospital.trim()) {
-      showToast(
-        'Please enter hospital or clinic'
-      );
-
+      showToast('Please enter hospital or clinic');
       return;
     }
 
     if (!date.trim()) {
-      showToast(
-        'Please enter appointment date'
-      );
-
+      showToast('Please enter appointment date');
       return;
     }
 
     if (!time.trim()) {
-      showToast(
-        'Please enter appointment time'
-      );
-
+      showToast('Please enter appointment time');
       return;
     }
 
     if (!reason.trim()) {
-      showToast(
-        'Please enter reason for visit'
-      );
-
+      showToast('Please enter reason for visit');
       return;
     }
 
+    try {
+      const token = await AsyncStorage.getItem('authToken');
 
-    // ================================================
-    // EDIT
-    // ================================================
+      if (!token) {
+        showToast('Please login again');
+        router.replace('/');
+        return;
+      }
 
-    if (editingId) {
-      setAppointments(
-        previous =>
-          previous.map(
-            appointment =>
-              appointment.id ===
-              editingId
-                ? {
-                    ...appointment,
+      const appointmentData = {
+        doctor: doctor.trim(),
+        specialty: specialty.trim(),
+        hospital: hospital.trim(),
+        date: date.trim(),
+        time: time.trim(),
+        reason: reason.trim(),
+        reminder,
+      };
 
-                    doctor,
+      // ================================================
+      // EDIT APPOINTMENT
+      // ================================================
 
-                    specialty,
+      if (editingId) {
+        const response = await fetch(
+          `${API_URL}/api/appointments/${editingId}`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(appointmentData),
+          }
+        );
 
-                    hospital,
+        const data = await response.json();
 
-                    date,
+        if (!response.ok) {
+          throw new Error(
+            data.message || 'Unable to update appointment'
+          );
+        }
 
-                    time,
+        await loadAppointments();
 
-                    reason,
+        setModalVisible(false);
+        setEditingId(null);
 
-                    reminder,
-                  }
-                : appointment
-          )
+        showToast('Appointment updated');
+        return;
+      }
+
+      // ================================================
+      // ADD APPOINTMENT
+      // ================================================
+
+      const response = await fetch(
+        `${API_URL}/api/appointments`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(appointmentData),
+        }
       );
 
-      setModalVisible(false);
+      const data = await response.json();
 
+      if (!response.ok) {
+        throw new Error(
+          data.message || 'Unable to save appointment'
+        );
+      }
+
+      await loadAppointments();
+
+      setActiveTab('Upcoming');
+      setModalVisible(false);
       setEditingId(null);
 
+      showToast('Appointment saved');
+    } catch (error) {
+      console.log('Save appointment error:', error);
       showToast(
-        'Appointment updated'
+        error instanceof Error
+          ? error.message
+          : 'Unable to save appointment'
       );
-
-      return;
     }
-
-
-    // ================================================
-    // ADD
-    // ================================================
-
-    const newAppointment: Appointment = {
-      id: Date.now().toString(),
-
-      doctor,
-
-      specialty,
-
-      hospital,
-
-      date,
-
-      time,
-
-      reason,
-
-      reminder,
-
-      status: 'Upcoming',
-    };
-
-
-    setAppointments(
-      previous => [
-        ...previous,
-        newAppointment,
-      ]
-    );
-
-
-    setActiveTab('Upcoming');
-
-    setModalVisible(false);
-
-    setEditingId(null);
-
-    showToast(
-      'Appointment saved'
-    );
   };
 
 
@@ -455,20 +469,47 @@ export default function AppointmentsScreen() {
   // DELETE
   // ==================================================
 
-  const deleteAppointment = (
+  const deleteAppointment = async (
     id: string
   ) => {
-    setAppointments(
-      previous =>
-        previous.filter(
-          appointment =>
-            appointment.id !== id
-        )
-    );
+    try {
+      const token = await AsyncStorage.getItem('authToken');
 
-    showToast(
-      'Appointment deleted'
-    );
+      if (!token) {
+        showToast('Please login again');
+        router.replace('/');
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/appointments/${id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || 'Unable to delete appointment'
+        );
+      }
+
+      await loadAppointments();
+
+      showToast('Appointment deleted');
+    } catch (error) {
+      console.log('Delete appointment error:', error);
+      showToast(
+        error instanceof Error
+          ? error.message
+          : 'Unable to delete appointment'
+      );
+    }
   };
 
 
@@ -476,23 +517,57 @@ export default function AppointmentsScreen() {
   // REMINDER
   // ==================================================
 
-  const toggleReminder = (
+  const toggleReminder = async (
     id: string
   ) => {
-    setAppointments(
-      previous =>
-        previous.map(
-          appointment =>
-            appointment.id === id
-              ? {
-                  ...appointment,
+    try {
+      const token = await AsyncStorage.getItem('authToken');
 
-                  reminder:
-                    !appointment.reminder,
-                }
-              : appointment
-        )
-    );
+      if (!token) {
+        showToast('Please login again');
+        router.replace('/');
+        return;
+      }
+
+      const appointment = appointments.find(
+        item => item.id === id
+      );
+
+      if (!appointment) {
+        return;
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/appointments/${id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            reminder: !appointment.reminder,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || 'Unable to update reminder'
+        );
+      }
+
+      await loadAppointments();
+    } catch (error) {
+      console.log('Reminder update error:', error);
+      showToast(
+        error instanceof Error
+          ? error.message
+          : 'Unable to update reminder'
+      );
+    }
   };
 
 

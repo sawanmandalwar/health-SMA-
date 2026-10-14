@@ -9,9 +9,14 @@ import {
   TextInput,
   useWindowDimensions,
   View,
+  ActivityIndicator,
+  Button,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { scheduleTestNotification } from '../services/notificationService';
 
 export default function LoginScreen() {
   const { width } = useWindowDimensions();
@@ -22,10 +27,12 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError('');
 
+    // Email validation
     if (!email.trim()) {
       setError('Please enter your email address.');
       return;
@@ -36,6 +43,7 @@ export default function LoginScreen() {
       return;
     }
 
+    // Password validation
     if (!password.trim()) {
       setError('Please enter your password.');
       return;
@@ -46,7 +54,51 @@ export default function LoginScreen() {
       return;
     }
 
-    console.log('Login successful');
+    try {
+      setLoading(true);
+
+      // Backend URL
+   const API_URL = 'http://10.170.142.154:5000';
+
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(data.message || 'Login failed. Please check your details.');
+        return;
+      }
+
+      // Save login information
+      await AsyncStorage.setItem('authToken', data.token);
+      
+      await AsyncStorage.setItem(
+        'user',
+        JSON.stringify(data.user)
+      );
+
+      console.log('Login successful:', data.user);
+
+      // Go to Home
+      router.replace('/home');
+    } catch (error) {
+      console.error('Login Error:', error);
+
+      setError(
+        'Cannot connect to server. Please make sure the backend is running.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,6 +117,7 @@ export default function LoginScreen() {
         >
           <View style={[styles.card, isLargeScreen && styles.webCard]}>
 
+            {/* Logo */}
             <View style={styles.logo}>
               <Text style={styles.logoIcon}>✚</Text>
             </View>
@@ -75,15 +128,21 @@ export default function LoginScreen() {
               Aapki Sehat, Hamari Zimmedari
             </Text>
 
+            {/* Welcome */}
             <View style={styles.welcomeSection}>
-              <Text style={styles.welcome}>Welcome Back 👋</Text>
+              <Text style={styles.welcome}>
+                Welcome Back 👋
+              </Text>
 
               <Text style={styles.subtitle}>
                 Login to manage your health with ease.
               </Text>
             </View>
 
-            <Text style={styles.label}>Email Address</Text>
+            {/* Email */}
+            <Text style={styles.label}>
+              Email Address
+            </Text>
 
             <TextInput
               style={styles.input}
@@ -96,7 +155,10 @@ export default function LoginScreen() {
               onChangeText={setEmail}
             />
 
-            <Text style={styles.label}>Password</Text>
+            {/* Password */}
+            <Text style={styles.label}>
+              Password
+            </Text>
 
             <View style={styles.passwordContainer}>
               <TextInput
@@ -117,6 +179,7 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
+            {/* Options */}
             <View style={styles.optionsRow}>
               <Pressable
                 style={styles.rememberRow}
@@ -145,17 +208,32 @@ export default function LoginScreen() {
               </Pressable>
             </View>
 
+            {/* Error */}
             {error ? (
-              <Text style={styles.error}>{error}</Text>
+              <Text style={styles.error}>
+                {error}
+              </Text>
             ) : null}
 
+            {/* Login Button */}
             <Pressable
-              style={styles.loginButton}
+              style={[
+                styles.loginButton,
+                loading && styles.loginButtonDisabled,
+              ]}
               onPress={handleLogin}
+              disabled={loading}
             >
-              <Text style={styles.loginButtonText}>Login</Text>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.loginButtonText}>
+                  Login
+                </Text>
+              )}
             </Pressable>
 
+            {/* Register */}
             <View style={styles.registerRow}>
               <Text style={styles.registerText}>
                 Don't have an account?{' '}
@@ -374,6 +452,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 25,
+  },
+
+  loginButtonDisabled: {
+    opacity: 0.7,
   },
 
   loginButtonText: {

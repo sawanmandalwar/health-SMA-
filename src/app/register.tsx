@@ -1,6 +1,9 @@
+
 import { router } from 'expo-router';
 import React, { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -17,58 +20,128 @@ export default function RegisterScreen() {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= 768;
 
+  // =========================
+  // FORM STATES
+  // =========================
+
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
+  // =========================
+  // BACKEND URL
+  // =========================
+
+const API_URL = 'http://10.170.142.154:5000';
+
+  // =========================
+  // REGISTER
+  // =========================
+
+  const handleRegister = async () => {
     setError('');
 
+    // Name validation
     if (!name.trim()) {
       setError('Please enter your full name.');
       return;
     }
 
+    // Mobile validation
     if (!/^[6-9]\d{9}$/.test(mobile)) {
       setError('Enter a valid 10-digit Indian mobile number.');
       return;
     }
 
+    // Email validation
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       setError('Enter a valid email address.');
       return;
     }
 
+    // Password validation
     if (password.length < 8) {
       setError('Password must contain at least 8 characters.');
       return;
     }
 
+    // Confirm password
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
     }
 
+    // Terms
     if (!agree) {
       setError('Please accept the Terms and Conditions.');
       return;
     }
 
-  console.log('Registration successful');
+    try {
+      setLoading(true);
 
+      console.log('Sending registration request...');
+
+      const response = await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password: password,
+          phone: mobile,
+        }),
+      });
+
+      const data = await response.json();
+
+      console.log('Register response:', data);
+
+      if (!response.ok) {
+        setError(data.message || 'Registration failed. Please try again.');
+        return;
+      }
+      
+
+   // Registration successful
+console.log('Registration successful');
+
+// Save login session
+await AsyncStorage.setItem('authToken', data.token);
+await AsyncStorage.setItem('user', JSON.stringify(data.user));
+
+// Go to welcome screen
 router.replace({
   pathname: '/welcome',
   params: {
     name: name.trim(),
   },
 });
+    } catch (error) {
+      console.log('Registration error:', error);
+
+      setError(
+        'Unable to connect to the server. Please make sure the backend is running.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // =========================
+  // UI
+  // =========================
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -85,7 +158,7 @@ router.replace({
           showsVerticalScrollIndicator={false}
         >
           <View style={[styles.card, isLargeScreen && styles.webCard]}>
-            
+
             {/* Logo */}
             <View style={styles.logo}>
               <Text style={styles.logoIcon}>✚</Text>
@@ -115,6 +188,7 @@ router.replace({
               placeholderTextColor="#71858D"
               value={name}
               onChangeText={setName}
+              editable={!loading}
             />
 
             {/* Mobile */}
@@ -133,6 +207,7 @@ router.replace({
                 maxLength={10}
                 value={mobile}
                 onChangeText={setMobile}
+                editable={!loading}
               />
             </View>
 
@@ -145,8 +220,10 @@ router.replace({
               placeholderTextColor="#71858D"
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
               value={email}
               onChangeText={setEmail}
+              editable={!loading}
             />
 
             {/* Password */}
@@ -160,10 +237,12 @@ router.replace({
                 secureTextEntry={!showPassword}
                 value={password}
                 onChangeText={setPassword}
+                editable={!loading}
               />
 
               <Pressable
                 onPress={() => setShowPassword(!showPassword)}
+                disabled={loading}
               >
                 <Text style={styles.showText}>
                   {showPassword ? 'Hide' : 'Show'}
@@ -186,12 +265,14 @@ router.replace({
                 secureTextEntry={!showConfirmPassword}
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
+                editable={!loading}
               />
 
               <Pressable
                 onPress={() =>
                   setShowConfirmPassword(!showConfirmPassword)
                 }
+                disabled={loading}
               >
                 <Text style={styles.showText}>
                   {showConfirmPassword ? 'Hide' : 'Show'}
@@ -203,6 +284,7 @@ router.replace({
             <Pressable
               style={styles.termsRow}
               onPress={() => setAgree(!agree)}
+              disabled={loading}
             >
               <View
                 style={[
@@ -223,14 +305,22 @@ router.replace({
               <Text style={styles.error}>{error}</Text>
             ) : null}
 
-            {/* Register */}
+            {/* Register Button */}
             <Pressable
-              style={styles.registerButton}
+              style={[
+                styles.registerButton,
+                loading && styles.registerButtonDisabled,
+              ]}
               onPress={handleRegister}
+              disabled={loading}
             >
-              <Text style={styles.registerButtonText}>
-                Create Account
-              </Text>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.registerButtonText}>
+                  Create Account
+                </Text>
+              )}
             </Pressable>
 
             {/* Login */}
@@ -239,7 +329,10 @@ router.replace({
                 Already have an account?{' '}
               </Text>
 
-              <Pressable>
+              <Pressable
+                onPress={() => router.replace('/')}
+                disabled={loading}
+              >
                 <Text style={styles.loginLink}>Login</Text>
               </Pressable>
             </View>
@@ -250,6 +343,10 @@ router.replace({
     </SafeAreaView>
   );
 }
+
+// =========================
+// STYLES
+// =========================
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -470,6 +567,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 22,
+  },
+
+  registerButtonDisabled: {
+    opacity: 0.7,
   },
 
   registerButtonText: {

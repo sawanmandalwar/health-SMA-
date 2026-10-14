@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-
+import { useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import {
   View,
   Text,
@@ -69,8 +70,7 @@ const COLORS = {
 // STORAGE
 // ======================================================
 
-const HISTORY_STORAGE_KEY =
-  '@health_saathi_medicine_history';
+const API_URL = 'http://10.170.142.154:5000';
 
 
 // ======================================================
@@ -150,65 +150,109 @@ export default function HistoryScreen() {
   // LOAD HISTORY
   // ====================================================
 
-  useEffect(() => {
-
+ useFocusEffect(
+  useCallback(() => {
     loadHistory();
-
-  }, []);
+  }, [])
+);
 
 
   const loadHistory = async () => {
-
     try {
+      const token = await AsyncStorage.getItem('authToken');
 
-      const saved =
-        await AsyncStorage.getItem(
-          HISTORY_STORAGE_KEY
-        );
-
-
-      if (!saved) {
-
+      if (!token) {
+        console.log('Authentication token not found. Please log in again.');
         setHistory([]);
-
         return;
-
       }
 
+      const response = await fetch(`${API_URL}/api/history`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-      const parsed =
-        JSON.parse(saved);
+      const data = await response.json();
 
-
-      if (
-        Array.isArray(parsed)
-      ) {
-
-        // newest first
-        const sorted =
-          [...parsed].sort(
-            (a, b) =>
-              b.timestamp -
-              a.timestamp
-          );
-
-
-        setHistory(sorted);
-
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to load medicine history.');
       }
 
+      const records = Array.isArray(data.history) ? data.history : [];
+
+      const formattedHistory: HistoryItem[] = records
+        .map((item: any) => {
+          const historyDate = item.scheduledDate || item.createdAt;
+          const parsedDate = historyDate ? new Date(historyDate) : null;
+          const validDate = parsedDate && !Number.isNaN(parsedDate.getTime());
+
+          return {
+            id: String(item._id || item.id || `${item.medicineId}-${historyDate}`),
+            medicineId: String(item.medicineId?._id || item.medicineId || ''),
+            medicineName: item.medicineName || 'Unknown medicine',
+            dosage: item.dosage || '',
+            time: item.time || '',
+            status: item.status,
+            date: validDate
+              ? parsedDate!.toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })
+              : '',
+            timestamp: validDate ? parsedDate!.getTime() : 0,
+          };
+        })
+        .filter(
+          (item: HistoryItem) => item.status === 'Taken' || item.status === 'Missed'
+        )
+        .sort((a: HistoryItem, b: HistoryItem) => b.timestamp - a.timestamp);
+
+      setHistory(formattedHistory);
     } catch (error) {
-
-      console.log(
-        'History loading error:',
-        error
-      );
-
+      console.error('History loading error:', error);
       setHistory([]);
-
     }
-
   };
+
+
+  // ====================================================
+  // WEEKLY ADHERENCE (CURRENT WEEK, MONDAY-SUNDAY)
+  // ====================================================
+
+  const now = new Date();
+  const startOfWeek = new Date(now);
+  startOfWeek.setHours(0, 0, 0, 0);
+  const daysSinceMonday = (startOfWeek.getDay() + 6) % 7;
+  startOfWeek.setDate(startOfWeek.getDate() - daysSinceMonday);
+
+  const startOfNextWeek = new Date(startOfWeek);
+  startOfNextWeek.setDate(startOfNextWeek.getDate() + 7);
+
+  const thisWeekHistory = history.filter((item) => {
+    const itemDate = new Date(item.timestamp);
+    return (
+      item.timestamp > 0 &&
+      itemDate >= startOfWeek &&
+      itemDate < startOfNextWeek
+    );
+  });
+
+  const weeklyTaken = thisWeekHistory.filter(
+    (item) => item.status === 'Taken'
+  ).length;
+
+  const weeklyMissed = thisWeekHistory.filter(
+    (item) => item.status === 'Missed'
+  ).length;
+
+  const weeklyTotal = weeklyTaken + weeklyMissed;
+  const weeklyAdherence = weeklyTotal === 0
+    ? 0
+    : Math.round((weeklyTaken / weeklyTotal) * 100);
 
 
   // ====================================================
@@ -550,7 +594,7 @@ export default function HistoryScreen() {
                 styles.circleText
               }
             >
-              85%
+              {weeklyAdherence}% 
             </Text>
 
           </View>
@@ -576,19 +620,7 @@ export default function HistoryScreen() {
                 styles.adherenceSubtitle
               }
             >
-              {history.filter(
-                item =>
-                  item.status ===
-                  'Taken'
-              ).length}{' '}
-              Taken ·{' '}
-
-              {history.filter(
-                item =>
-                  item.status ===
-                  'Missed'
-              ).length}{' '}
-              Missed
+              {weeklyTaken} Taken · {weeklyMissed} Missed
             </Text>
 
           </View>
