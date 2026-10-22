@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
+import React, { useEffect, useState , useCallback } from 'react';
+import { useFocusEffect , useRouter } from 'expo-router';
+import { apiFetch, parseJson } from '../services/api';
+
 import {
   View,
   Text,
@@ -14,7 +15,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { useRouter } from 'expo-router';
+
 
 import {
   Poppins_500Medium,
@@ -70,7 +71,6 @@ const COLORS = {
 // STORAGE
 // ======================================================
 
-const API_URL = 'http://10.170.142.154:5000';
 
 
 // ======================================================
@@ -150,13 +150,6 @@ export default function HistoryScreen() {
   // LOAD HISTORY
   // ====================================================
 
- useFocusEffect(
-  useCallback(() => {
-    loadHistory();
-  }, [])
-);
-
-
   const loadHistory = async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
@@ -167,7 +160,7 @@ export default function HistoryScreen() {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/history`, {
+      const response = await apiFetch(`/api/history`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -175,7 +168,7 @@ export default function HistoryScreen() {
         },
       });
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
       if (!response.ok) {
         throw new Error(data.message || 'Failed to load medicine history.');
@@ -217,6 +210,12 @@ export default function HistoryScreen() {
       setHistory([]);
     }
   };
+
+ useFocusEffect(
+  useCallback(() => {
+    loadHistory();
+  }, [])
+);
 
 
   // ====================================================

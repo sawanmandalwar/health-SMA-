@@ -10,13 +10,11 @@ import {
   useWindowDimensions,
   View,
   ActivityIndicator,
-  Button,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { scheduleTestNotification } from '../services/notificationService';
+import { apiFetch, getApiErrorMessage, parseJson } from '../services/api';
 
 export default function LoginScreen() {
   const { width } = useWindowDimensions();
@@ -30,6 +28,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
+    console.log('[login] handler executed');
     setError('');
 
     // Email validation
@@ -57,10 +56,9 @@ export default function LoginScreen() {
     try {
       setLoading(true);
 
-      // Backend URL
-   const API_URL = 'http://10.170.142.154:5000';
+      console.log('[login] sending POST /api/auth/login');
 
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+      const response = await apiFetch(`/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -71,9 +69,12 @@ export default function LoginScreen() {
         }),
       });
 
-      const data = await response.json();
+      console.log('[login] response status:', response.status);
+
+      const data = await parseJson(response);
 
       if (!response.ok) {
+        console.log('[login] server rejected the request:', response.status);
         setError(data.message || 'Login failed. Please check your details.');
         return;
       }
@@ -86,16 +87,14 @@ export default function LoginScreen() {
         JSON.stringify(data.user)
       );
 
-      console.log('Login successful:', data.user);
+      console.log('[login] success, redirecting to /home');
 
       // Go to Home
       router.replace('/home');
     } catch (error) {
-      console.error('Login Error:', error);
+      console.error('[login] request failed:', error);
 
-      setError(
-        'Cannot connect to server. Please make sure the backend is running.'
-      );
+      setError(getApiErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -236,7 +235,7 @@ export default function LoginScreen() {
             {/* Register */}
             <View style={styles.registerRow}>
               <Text style={styles.registerText}>
-                Don't have an account?{' '}
+                Don&apos;t have an account?{' '}
               </Text>
 
               <Pressable

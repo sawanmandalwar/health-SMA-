@@ -6,10 +6,13 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  Image,
   useWindowDimensions,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
+
+import * as ImagePicker from 'expo-image-picker';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -114,13 +117,26 @@ export default function ScanScreen() {
   // STATES
   // ==================================================
 
-  const [result, setResult] =
-    useState(false);
+  const [imageUri, setImageUri] =
+    useState<string | null>(null);
+
+  const [imageSource, setImageSource] =
+    useState<'camera' | 'library' | null>(
+      null
+    );
+
+  const [activeSource, setActiveSource] =
+    useState<'camera' | 'library' | null>(
+      null
+    );
+
+  const [errorMessage, setErrorMessage] =
+    useState<string | null>(null);
 
   const [scanning, setScanning] =
     useState(false);
 
-  const [saving, setSaving] =
+  const [, setSaving] =
     useState(false);
 
   const [toastVisible, setToastVisible] =
@@ -150,37 +166,85 @@ export default function ScanScreen() {
 
 
   // ==================================================
-  // PROCESS PRESCRIPTION
-  // ==================================================
-
-  const processPrescription = () => {
-
-    setScanning(true);
-
-    setResult(false);
-
-    setTimeout(() => {
-
-      setScanning(false);
-
-      setResult(true);
-
-      showToast(
-        'Prescription details extracted'
-      );
-
-    }, 1000);
-
-  };
-
-
-  // ==================================================
   // CAPTURE
   // ==================================================
 
-  const handleCapture = () => {
+  const handleCapture = async () => {
 
-    processPrescription();
+    setErrorMessage(null);
+
+    setActiveSource('camera');
+
+    setScanning(true);
+
+    try {
+
+      const permission =
+        await ImagePicker
+          .requestCameraPermissionsAsync();
+
+      if (!permission.granted) {
+
+        setErrorMessage(
+          permission.canAskAgain
+            ? 'Camera access is required to capture a prescription.'
+            : 'Camera access is blocked. Enable it in your device settings to capture a prescription.'
+        );
+
+        return;
+
+      }
+
+      const pickerResult =
+        await ImagePicker
+          .launchCameraAsync({
+            mediaTypes: ['images'],
+            quality: 1,
+          });
+
+      if (pickerResult.canceled) {
+        return;
+      }
+
+      const asset =
+        pickerResult.assets?.[0];
+
+      if (!asset?.uri) {
+
+        setErrorMessage(
+          'The captured image could not be loaded. Please try again.'
+        );
+
+        return;
+
+      }
+
+      setImageUri(asset.uri);
+
+      setImageSource('camera');
+
+      showToast(
+        'Prescription image captured'
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Failed to capture prescription:',
+        error
+      );
+
+      setErrorMessage(
+        'Unable to open the camera. Please try again.'
+      );
+
+    } finally {
+
+      setScanning(false);
+
+      setActiveSource(null);
+
+    }
 
   };
 
@@ -189,9 +253,82 @@ export default function ScanScreen() {
   // UPLOAD
   // ==================================================
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
 
-    processPrescription();
+    setErrorMessage(null);
+
+    setActiveSource('library');
+
+    setScanning(true);
+
+    try {
+
+      const permission =
+        await ImagePicker
+          .requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+
+        setErrorMessage(
+          permission.canAskAgain
+            ? 'Photo library access is required to upload a prescription.'
+            : 'Photo library access is blocked. Enable it in your device settings to upload a prescription.'
+        );
+
+        return;
+
+      }
+
+      const pickerResult =
+        await ImagePicker
+          .launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            quality: 1,
+          });
+
+      if (pickerResult.canceled) {
+        return;
+      }
+
+      const asset =
+        pickerResult.assets?.[0];
+
+      if (!asset?.uri) {
+
+        setErrorMessage(
+          'The selected image could not be loaded. Please try again.'
+        );
+
+        return;
+
+      }
+
+      setImageUri(asset.uri);
+
+      setImageSource('library');
+
+      showToast(
+        'Prescription image selected'
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Failed to upload prescription:',
+        error
+      );
+
+      setErrorMessage(
+        'Unable to open the photo library. Please try again.'
+      );
+
+    } finally {
+
+      setScanning(false);
+
+      setActiveSource(null);
+
+    }
 
   };
 
@@ -200,6 +337,7 @@ export default function ScanScreen() {
   // CONFIRM & SAVE REMINDER
   // ==================================================
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const confirmReminder =
     async () => {
 
@@ -373,6 +511,7 @@ export default function ScanScreen() {
   // BOTTOM TAB
   // ==================================================
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks, react-hooks/exhaustive-deps
   const BottomTab = ({
     icon,
     label,
@@ -424,53 +563,6 @@ export default function ScanScreen() {
         </Text>
 
       </Pressable>
-
-    );
-
-  };
-
-
-  // ==================================================
-  // DETAIL BOX
-  // ==================================================
-
-  const DetailBox = ({
-    label,
-    value,
-  }: {
-    label: string;
-    value: string;
-  }) => {
-
-    return (
-
-      <View
-        style={[
-          styles.detailBox,
-
-          isMobile &&
-            styles.detailBoxMobile,
-        ]}
-      >
-
-        <Text
-          style={
-            styles.detailLabel
-          }
-        >
-          {label}
-        </Text>
-
-
-        <Text
-          style={
-            styles.detailValue
-          }
-        >
-          {value}
-        </Text>
-
-      </View>
 
     );
 
@@ -600,7 +692,7 @@ export default function ScanScreen() {
             ]}
           >
             Capture or upload a prescription
-            to preview extracted details.
+            to preview the image.
           </Text>
 
         </View>
@@ -622,21 +714,46 @@ export default function ScanScreen() {
           ]}
         >
 
-          <View
-            style={
-              styles.documentCircle
-            }
-          >
+          {imageUri ? (
 
-            <Ionicons
-              name="document-text-outline"
-              size={42}
-              color={
-                COLORS.primaryBlue
+            <View
+              style={[
+                styles.previewFrame,
+
+                isMobile &&
+                  styles.previewFrameMobile,
+              ]}
+            >
+
+              <Image
+                source={{
+                  uri: imageUri,
+                }}
+                style={styles.previewImage}
+                resizeMode="contain"
+              />
+
+            </View>
+
+          ) : (
+
+            <View
+              style={
+                styles.documentCircle
               }
-            />
+            >
 
-          </View>
+              <Ionicons
+                name="document-text-outline"
+                size={42}
+                color={
+                  COLORS.primaryBlue
+                }
+              />
+
+            </View>
+
+          )}
 
 
           <Text
@@ -648,8 +765,12 @@ export default function ScanScreen() {
             ]}
           >
             {scanning
-              ? 'Processing prescription...'
-              : 'Tap to capture or upload prescription'}
+              ? activeSource === 'camera'
+                ? 'Opening camera...'
+                : 'Opening photo library...'
+              : imageUri
+                ? 'Prescription image selected'
+                : 'Tap to capture or upload prescription'}
           </Text>
 
 
@@ -662,8 +783,10 @@ export default function ScanScreen() {
             ]}
           >
             {scanning
-              ? 'Reading prescription details...'
-              : 'This demonstration uses a prepared sample result.'}
+              ? 'Waiting for you to choose a prescription image.'
+              : imageUri
+                ? 'You can capture a new image or choose a different one.'
+                : 'Choose a clear photo of your prescription to preview it here.'}
           </Text>
 
 
@@ -769,8 +892,9 @@ export default function ScanScreen() {
                   styles.loadingText
                 }
               >
-                Extracting medicine
-                information...
+                {activeSource === 'camera'
+                  ? 'Waiting for the camera...'
+                  : 'Waiting for your selection...'}
               </Text>
 
             </View>
@@ -781,10 +905,46 @@ export default function ScanScreen() {
 
 
         {/* ========================================== */}
-        {/* EXTRACTED RESULT */}
+        {/* ERROR */}
         {/* ========================================== */}
 
-        {result && (
+        {errorMessage && (
+
+          <View
+            style={[
+              styles.errorBox,
+
+              isMobile &&
+                styles.errorBoxMobile,
+            ]}
+          >
+
+            <Ionicons
+              name="alert-circle-outline"
+              size={23}
+              color={
+                COLORS.dangerRed
+              }
+            />
+
+            <Text
+              style={
+                styles.errorText
+              }
+            >
+              {errorMessage}
+            </Text>
+
+          </View>
+
+        )}
+
+
+        {/* ========================================== */}
+        {/* SELECTED IMAGE */}
+        {/* ========================================== */}
+
+        {imageUri && (
 
           <View
             style={[
@@ -794,8 +954,6 @@ export default function ScanScreen() {
                 styles.resultCardMobile,
             ]}
           >
-
-            {/* RESULT HEADER */}
 
             <View
               style={[
@@ -813,7 +971,7 @@ export default function ScanScreen() {
                     styles.extractedLabel
                   }
                 >
-                  EXTRACTED DETAILS
+                  SELECTED IMAGE
                 </Text>
 
 
@@ -825,7 +983,7 @@ export default function ScanScreen() {
                       styles.resultTitleMobile,
                   ]}
                 >
-                  Prescription result
+                  Prescription preview
                 </Text>
 
               </View>
@@ -833,19 +991,33 @@ export default function ScanScreen() {
 
               <View
                 style={[
-                  styles.matchBadge,
+                  styles.sourceBadge,
 
                   isMobile &&
-                    styles.matchBadgeMobile,
+                    styles.sourceBadgeMobile,
                 ]}
               >
 
+                <Ionicons
+                  name={
+                    imageSource === 'camera'
+                      ? 'camera-outline'
+                      : 'images-outline'
+                  }
+                  size={16}
+                  color={
+                    COLORS.primaryBlue
+                  }
+                />
+
                 <Text
                   style={
-                    styles.matchText
+                    styles.sourceBadgeText
                   }
                 >
-                  98% match
+                  {imageSource === 'camera'
+                    ? 'Camera'
+                    : 'Gallery'}
                 </Text>
 
               </View>
@@ -853,115 +1025,33 @@ export default function ScanScreen() {
             </View>
 
 
-            {/* DETAILS */}
-
-            <View
-              style={[
-                styles.detailsGrid,
-
-                isMobile &&
-                  styles.detailsGridMobile,
-              ]}
-            >
-
-              <DetailBox
-                label="Medicine Name"
-                value="Azithromycin"
-              />
-
-              <DetailBox
-                label="Dosage"
-                value="500mg"
-              />
-
-              <DetailBox
-                label="Frequency"
-                value="Once Daily"
-              />
-
-              <DetailBox
-                label="Timing"
-                value="After Breakfast"
-              />
-
-              <DetailBox
-                label="Duration"
-                value="5 Days"
-              />
-
-            </View>
-
-
-            {/* WARNING */}
-
             <View
               style={
-                styles.warningBox
+                styles.reviewNotice
               }
             >
 
               <Ionicons
-                name="warning-outline"
+                name="information-circle-outline"
                 size={23}
                 color={
-                  COLORS.warningText
+                  COLORS.primaryBlue
                 }
               />
 
               <Text
                 style={
-                  styles.warningText
+                  styles.reviewNoticeText
                 }
               >
-                Please review the extracted
-                details before confirming.
+                Prescription reading is not
+                connected yet. This image has
+                not been analyzed, and no
+                medicine or reminder has been
+                saved.
               </Text>
 
             </View>
-
-
-            {/* CONFIRM */}
-
-            <Pressable
-              onPress={
-                confirmReminder
-              }
-
-              disabled={saving}
-
-              style={[
-                styles.confirmButton,
-
-                saving &&
-                  styles.confirmButtonDisabled,
-              ]}
-            >
-
-              <Ionicons
-                name={
-                  saving
-                    ? 'sync-outline'
-                    : 'checkmark-circle-outline'
-                }
-
-                size={21}
-
-                color={
-                  COLORS.white
-                }
-              />
-
-              <Text
-                style={
-                  styles.confirmButtonText
-                }
-              >
-                {saving
-                  ? 'Saving Reminder...'
-                  : 'Confirm & Set Reminder'}
-              </Text>
-
-            </Pressable>
 
           </View>
 
@@ -1314,6 +1404,36 @@ const styles = StyleSheet.create({
   },
 
 
+  previewFrame: {
+    width: '100%',
+
+    maxWidth: 460,
+
+    height: 260,
+
+    borderRadius: 9,
+
+    overflow: 'hidden',
+
+    backgroundColor:
+      '#E8F5F8',
+
+    marginBottom: 25,
+  },
+
+
+  previewFrameMobile: {
+    height: 210,
+  },
+
+
+  previewImage: {
+    width: '100%',
+
+    height: '100%',
+  },
+
+
   scanTitle: {
     fontFamily:
       'Poppins_600SemiBold',
@@ -1580,6 +1700,126 @@ const styles = StyleSheet.create({
 
   resultTitleMobile: {
     fontSize: 21,
+  },
+
+
+  sourceBadge: {
+    backgroundColor:
+      COLORS.lightBlue,
+
+    borderRadius: 20,
+
+    paddingVertical: 8,
+
+    paddingHorizontal: 15,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 6,
+  },
+
+
+  sourceBadgeMobile: {
+    alignSelf: 'flex-start',
+
+    marginTop: 2,
+  },
+
+
+  sourceBadgeText: {
+    fontFamily:
+      'Inter_600SemiBold',
+
+    fontSize: 14,
+
+    color:
+      COLORS.primaryBlue,
+  },
+
+
+  reviewNotice: {
+    minHeight: 64,
+
+    backgroundColor:
+      COLORS.lightBlue,
+
+    borderRadius: 9,
+
+    paddingHorizontal: 15,
+
+    paddingVertical: 12,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 10,
+  },
+
+
+  reviewNoticeText: {
+    flex: 1,
+
+    fontFamily:
+      'Inter_400Regular',
+
+    fontSize: 15,
+
+    color:
+      COLORS.primaryBlue,
+  },
+
+
+  errorBox: {
+    width: '58%',
+
+    maxWidth: 920,
+
+    alignSelf: 'center',
+
+    minHeight: 64,
+
+    backgroundColor:
+      '#FDECEA',
+
+    borderRadius: 9,
+
+    borderWidth: 1,
+
+    borderColor:
+      '#F3C1BC',
+
+    paddingHorizontal: 15,
+
+    paddingVertical: 12,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 10,
+
+    marginBottom: 20,
+  },
+
+
+  errorBoxMobile: {
+    width: '100%',
+  },
+
+
+  errorText: {
+    flex: 1,
+
+    fontFamily:
+      'Inter_500Medium',
+
+    fontSize: 15,
+
+    color:
+      COLORS.dangerRed,
   },
 
 

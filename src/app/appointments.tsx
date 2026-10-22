@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-const API_URL = 'http://10.170.142.154:5000';
 
 import {
   View,
@@ -36,6 +35,14 @@ import {
 import { useFonts } from 'expo-font';
 
 import { useRouter } from 'expo-router';
+
+import {
+  replaceAppointmentReminder,
+  cancelAppointmentRemindersForAppointment,
+  syncAppointmentReminders,
+  requestNotificationPermission,
+} from '../services/notificationService';
+import { apiFetch, parseJson } from '../services/api';
 
 
 // ====================================================
@@ -94,6 +101,60 @@ type Appointment = {
   status: 'Upcoming' | 'Previous';
 };
 
+
+// ====================================================
+// BOTTOM TAB (module scope so it is not recreated on render)
+// ====================================================
+
+function BottomTab({
+  icon,
+  label,
+  active,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+
+  label: string;
+
+  active?: boolean;
+
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.bottomTab,
+
+        active &&
+          styles.bottomTabActive,
+      ]}
+    >
+
+      <Ionicons
+        name={icon}
+        size={22}
+        color={
+          active
+            ? COLORS.primaryBlue
+            : COLORS.secondaryText
+        }
+      />
+
+      <Text
+        style={[
+          styles.bottomTabText,
+
+          active &&
+            styles.bottomTabTextActive,
+        ]}
+      >
+        {label}
+      </Text>
+
+    </Pressable>
+  );
+}
 
 
 // ====================================================
@@ -199,20 +260,21 @@ const [appointments, setAppointments] =
   // TOAST FUNCTION
   // ==================================================
 
-  const showToast = (
-    message: string
-  ) => {
-    setToastMessage(message);
+  const showToast = useCallback(
+    (message: string) => {
+      setToastMessage(message);
 
-    setToastVisible(true);
-  };
+      setToastVisible(true);
+    },
+    []
+  );
 
 
   // ==================================================
   // LOAD APPOINTMENTS FROM BACKEND
   // ==================================================
 
-  const loadAppointments = async () => {
+  const loadAppointments = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
 
@@ -222,8 +284,8 @@ const [appointments, setAppointments] =
         return;
       }
 
-      const response = await fetch(
-        `${API_URL}/api/appointments`,
+      const response = await apiFetch(
+        `/api/appointments`,
         {
           method: 'GET',
           headers: {
@@ -232,7 +294,7 @@ const [appointments, setAppointments] =
         }
       );
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
       if (!response.ok) {
         throw new Error(
@@ -254,11 +316,15 @@ const [appointments, setAppointments] =
         }));
 
       setAppointments(serverAppointments);
+
+      // Reconcile reminders in the background; unchanged ones are not recreated
+      // and this never blocks rendering the appointment list.
+      void syncAppointmentReminders(serverAppointments);
     } catch (error) {
       console.log('Appointment loading error:', error);
       showToast('Unable to load appointments');
     }
-  };
+  }, [router, showToast]);
 
 
   useEffect(() => {
@@ -273,8 +339,10 @@ const [appointments, setAppointments] =
 
 
   useEffect(() => {
-    loadAppointments();
-  }, []);
+    (async () => {
+      await loadAppointments();
+    })();
+  }, [loadAppointments]);
 
 
   // ==================================================
@@ -394,8 +462,8 @@ const [appointments, setAppointments] =
       // ================================================
 
       if (editingId) {
-        const response = await fetch(
-          `${API_URL}/api/appointments/${editingId}`,
+        const response = await apiFetch(
+          `/api/appointments/${editingId}`,
           {
             method: 'PUT',
             headers: {
@@ -406,12 +474,40 @@ const [appointments, setAppointments] =
           }
         );
 
-        const data = await response.json();
+        const data = await parseJson(response);
 
         if (!response.ok) {
           throw new Error(
             data.message || 'Unable to update appointment'
           );
+        }
+
+        // Schedule/update reminder for the updated appointment.
+        if (data.appointment) {
+          const reminderAllowed = await requestNotificationPermission();
+
+          try {
+            await replaceAppointmentReminder({
+              id: data.appointment._id,
+              doctor: data.appointment.doctor,
+              specialty: data.appointment.specialty,
+              hospital: data.appointment.hospital,
+              date: data.appointment.date,
+              time: data.appointment.time,
+              reminder: data.appointment.reminder,
+              status: data.appointment.status,
+            });
+          } catch (reminderError) {
+            console.error(
+              'Appointment reminder scheduling failed:',
+              reminderError
+            );
+            showToast('Reminder could not be scheduled');
+          }
+
+          if (!reminderAllowed) {
+            showToast('Enable notifications to get appointment reminders');
+          }
         }
 
         await loadAppointments();
@@ -427,8 +523,8 @@ const [appointments, setAppointments] =
       // ADD APPOINTMENT
       // ================================================
 
-      const response = await fetch(
-        `${API_URL}/api/appointments`,
+      const response = await apiFetch(
+        `/api/appointments`,
         {
           method: 'POST',
           headers: {
@@ -439,12 +535,40 @@ const [appointments, setAppointments] =
         }
       );
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
       if (!response.ok) {
         throw new Error(
           data.message || 'Unable to save appointment'
         );
+      }
+
+      // Schedule reminder for the newly created appointment.
+      if (data.appointment) {
+        const reminderAllowed = await requestNotificationPermission();
+
+        try {
+          await replaceAppointmentReminder({
+            id: data.appointment._id,
+            doctor: data.appointment.doctor,
+            specialty: data.appointment.specialty,
+            hospital: data.appointment.hospital,
+            date: data.appointment.date,
+            time: data.appointment.time,
+            reminder: data.appointment.reminder,
+            status: data.appointment.status,
+          });
+        } catch (reminderError) {
+          console.error(
+            'Appointment reminder scheduling failed:',
+            reminderError
+          );
+          showToast('Reminder could not be scheduled');
+        }
+
+        if (!reminderAllowed) {
+          showToast('Enable notifications to get appointment reminders');
+        }
       }
 
       await loadAppointments();
@@ -481,8 +605,8 @@ const [appointments, setAppointments] =
         return;
       }
 
-      const response = await fetch(
-        `${API_URL}/api/appointments/${id}`,
+      const response = await apiFetch(
+        `/api/appointments/${id}`,
         {
           method: 'DELETE',
           headers: {
@@ -491,13 +615,16 @@ const [appointments, setAppointments] =
         }
       );
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
       if (!response.ok) {
         throw new Error(
           data.message || 'Unable to delete appointment'
         );
       }
+
+      // Cancel any scheduled reminders for this appointment.
+      await cancelAppointmentRemindersForAppointment(id);
 
       await loadAppointments();
 
@@ -537,8 +664,10 @@ const [appointments, setAppointments] =
         return;
       }
 
-      const response = await fetch(
-        `${API_URL}/api/appointments/${id}`,
+      const newReminderValue = !appointment.reminder;
+
+      const response = await apiFetch(
+        `/api/appointments/${id}`,
         {
           method: 'PUT',
           headers: {
@@ -546,17 +675,31 @@ const [appointments, setAppointments] =
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            reminder: !appointment.reminder,
+            reminder: newReminderValue,
           }),
         }
       );
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
       if (!response.ok) {
         throw new Error(
           data.message || 'Unable to update reminder'
         );
+      }
+
+      // Directly schedule or cancel the reminder based on new value.
+      if (newReminderValue) {
+        try {
+          await replaceAppointmentReminder({
+            ...appointment,
+            reminder: true,
+          });
+        } catch (reminderError) {
+          console.error('Appointment reminder scheduling failed:', reminderError);
+        }
+      } else {
+        await cancelAppointmentRemindersForAppointment(id);
       }
 
       await loadAppointments();
@@ -909,61 +1052,6 @@ const [appointments, setAppointments] =
         </View>
 
       </View>
-    );
-  };
-
-
-  // ==================================================
-  // BOTTOM TAB
-  // ==================================================
-
-  const BottomTab = ({
-    icon,
-    label,
-    active,
-    onPress,
-  }: {
-    icon: keyof typeof Ionicons.glyphMap;
-
-    label: string;
-
-    active?: boolean;
-
-    onPress: () => void;
-  }) => {
-    return (
-      <Pressable
-        onPress={onPress}
-        style={[
-          styles.bottomTab,
-
-          active &&
-            styles.bottomTabActive,
-        ]}
-      >
-
-        <Ionicons
-          name={icon}
-          size={22}
-          color={
-            active
-              ? COLORS.primaryBlue
-              : COLORS.secondaryText
-          }
-        />
-
-        <Text
-          style={[
-            styles.bottomTabText,
-
-            active &&
-              styles.bottomTabTextActive,
-          ]}
-        >
-          {label}
-        </Text>
-
-      </Pressable>
     );
   };
 

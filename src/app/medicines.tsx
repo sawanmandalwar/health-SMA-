@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 
 import {
   View,
@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useRouter } from 'expo-router';
+import { apiFetch, parseJson } from '../services/api';
 
 import {
   Poppins_400Regular,
@@ -34,8 +35,10 @@ import {
 
 import { useFonts } from 'expo-font';
 import {
-  replaceMedicineReminder,
+  syncMedicineReminders,
   cancelMedicineRemindersForMedicine,
+  isValidMedicineTime,
+  requestNotificationPermission,
 } from '../services/notificationService';
 
 
@@ -74,15 +77,6 @@ const COLORS = {
 };
 
 
-// ======================================================
-// STORAGE KEYS
-// ======================================================
-
-const MEDICINES_STORAGE_KEY =
-  '@health_saathi_medicines';
-
-const API_URL = 'http://10.170.142.154:5000';
-
 
 // ======================================================
 // TYPES
@@ -92,6 +86,26 @@ type MedicineStatus =
   | 'Pending'
   | 'Taken'
   | 'Missed';
+
+
+type MedicineSchedule = {
+  id: string;
+
+  time: string;
+
+  quantity: number;
+};
+
+
+type MedicineDose = {
+  doseId: string;
+
+  time: string;
+
+  quantity: number;
+
+  status: MedicineStatus;
+};
 
 
 type Medicine = {
@@ -112,8 +126,104 @@ type Medicine = {
   endDate: string;
 
   status: MedicineStatus;
+
+  initialQuantity: number | null;
+
+  remainingQuantity: number | null;
+
+  unit: string;
+
+  refillThreshold: number | null;
+
+  dailyConsumption: number | null;
+
+  refillReminderDays: number | null;
+
+  estimatedRunOutDate: string | null;
+
+  needsRefill: boolean;
+
+  schedules: MedicineSchedule[];
+
+  todayDoses: MedicineDose[];
 };
 
+
+// ======================================================
+// HELPERS
+// ======================================================
+
+function formatMedicine(item: any): Medicine {
+
+  const schedules: MedicineSchedule[] =
+    Array.isArray(item.schedules) && item.schedules.length > 0
+      ? item.schedules
+          .filter((schedule: any) => schedule && schedule.time)
+          .map((schedule: any) => ({
+            id: String(schedule._id || schedule.id || 'default'),
+            time: schedule.time || '',
+            quantity:
+              typeof schedule.quantity === 'number'
+                ? schedule.quantity
+                : 1,
+          }))
+      : item.time
+      ? [{ id: 'default', time: item.time, quantity: 1 }]
+      : [];
+
+  const todayDoses: MedicineDose[] =
+    Array.isArray(item.todayDoses) && item.todayDoses.length > 0
+      ? item.todayDoses.map((dose: any) => ({
+          doseId: String(dose.doseId || 'default'),
+          time: dose.time || '',
+          quantity:
+            typeof dose.quantity === 'number' ? dose.quantity : 1,
+          status: (dose.status as MedicineStatus) || 'Pending',
+        }))
+      : schedules.map((schedule) => ({
+          doseId: schedule.id,
+          time: schedule.time,
+          quantity: schedule.quantity,
+          status: 'Pending' as MedicineStatus,
+        }));
+
+  return {
+    id: item._id || item.id,
+    name: item.name || '',
+    dosage: item.dosage || '',
+    timing: item.timing || '',
+    time: item.time || '',
+    frequency: item.frequency || 'Once Daily',
+    startDate: item.startDate || '',
+    endDate: item.endDate || '',
+    status: item.status || 'Pending',
+    initialQuantity:
+      typeof item.initialQuantity === 'number'
+        ? item.initialQuantity
+        : null,
+    remainingQuantity:
+      typeof item.remainingQuantity === 'number'
+        ? item.remainingQuantity
+        : null,
+    unit: item.unit || '',
+    refillThreshold:
+      typeof item.refillThreshold === 'number'
+        ? item.refillThreshold
+        : null,
+    dailyConsumption:
+      typeof item.dailyConsumption === 'number'
+        ? item.dailyConsumption
+        : null,
+    refillReminderDays:
+      typeof item.refillReminderDays === 'number'
+        ? item.refillReminderDays
+        : null,
+    estimatedRunOutDate: item.estimatedRunOutDate || null,
+    needsRefill: Boolean(item.needsRefill),
+    schedules,
+    todayDoses,
+  };
+}
 
 
 // ======================================================
@@ -134,9 +244,6 @@ export default function MedicinesScreen() {
 
   const isMobile =
     width < 600;
-
-  const isTablet =
-    width >= 600 && width < 900;
 
   const isDesktop =
     width >= 900;
@@ -201,11 +308,13 @@ export default function MedicinesScreen() {
   const [timing, setTiming] =
     useState('');
 
-  const [time, setTime] =
-    useState('');
-
   const [frequency, setFrequency] =
     useState('Once Daily');
+
+  const [scheduleRows, setScheduleRows] =
+    useState<
+      { id: string; time: string; quantity: string }[]
+    >([{ id: '', time: '', quantity: '1' }]);
 
   const [startDate, setStartDate] =
     useState('');
@@ -214,15 +323,44 @@ export default function MedicinesScreen() {
     useState('');
 
 
+  // Refill / stock form fields
+
+  const [initialQuantity, setInitialQuantity] =
+    useState('');
+
+  const [stockUnit, setStockUnit] =
+    useState('');
+
+  const [refillThreshold, setRefillThreshold] =
+    useState('');
+
+  const [dailyConsumption, setDailyConsumption] =
+    useState('');
+
+  const [refillReminderDays, setRefillReminderDays] =
+    useState('');
+
+
+  // Refill modal
+
+  const [refillModalVisible, setRefillModalVisible] =
+    useState(false);
+
+  const [refillMedicine, setRefillMedicine] =
+    useState<Medicine | null>(null);
+
+  const [refillQuantity, setRefillQuantity] =
+    useState('');
+
+  const [refilling, setRefilling] =
+    useState(false);
+
+
   // ====================================================
   // LOAD MEDICINES FROM MONGODB
   // ====================================================
 
-  useEffect(() => {
-    loadMedicines();
-  }, []);
-
-  const loadMedicines = async () => {
+  const loadMedicines = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
 
@@ -232,14 +370,14 @@ export default function MedicinesScreen() {
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/medicines`, {
+      const response = await apiFetch(`/api/medicines`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
       if (!response.ok) {
         throw new Error(data.message || 'Unable to load medicines');
@@ -252,50 +390,43 @@ export default function MedicinesScreen() {
         : [];
 
       const formattedMedicines: Medicine[] = serverMedicines.map(
-        (item: any) => ({
-          id: item._id || item.id,
-          name: item.name || '',
-          dosage: item.dosage || '',
-          timing: item.timing || '',
-          time: item.time || '',
-          frequency: item.frequency || 'Once Daily',
-          startDate: item.startDate || '',
-          endDate: item.endDate || '',
-          status: item.status || 'Pending',
-        })
+        formatMedicine
       );
 
       setMedicines(formattedMedicines);
 
-      // Sync reminders for medicines already saved in MongoDB.
-      // replaceMedicineReminder cancels old scheduled instances first,
-      // so reopening/reloading this screen does not create duplicates.
-      for (const medicine of formattedMedicines) {
-        if (!medicine.id) continue;
-
-        try {
-          await replaceMedicineReminder({
-            _id: medicine.id,
-            name: medicine.name,
-            dosage: medicine.dosage,
-            timing: medicine.timing,
-            time: medicine.time,
-            frequency: medicine.frequency,
-            startDate: medicine.startDate,
-            endDate: medicine.endDate,
-          });
-        } catch (reminderError) {
-          console.error(
-            `Reminder sync failed for ${medicine.name}:`,
-            reminderError
-          );
-        }
-      }
+      // Reconcile reminders after the list renders. The service matches by a
+      // stable per-dose identifier, so unchanged doses are not recreated and
+      // reopening the app never creates duplicates. Awaiting here guarantees
+      // reminders are scheduled before saveMedicine() finishes.
+      await syncMedicineReminders(
+        formattedMedicines.map((medicine) => ({
+          _id: medicine.id,
+          name: medicine.name,
+          dosage: medicine.dosage,
+          timing: medicine.timing,
+          time: medicine.time,
+          frequency: medicine.frequency,
+          startDate: medicine.startDate,
+          endDate: medicine.endDate,
+          schedules: medicine.schedules.map((schedule) => ({
+            id: schedule.id,
+            time: schedule.time,
+            quantity: schedule.quantity,
+          })),
+        }))
+      );
     } catch (error) {
       console.log('Medicine loading error:', error);
       Alert.alert('Error', 'Unable to load medicines from server.');
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    (async () => {
+      await loadMedicines();
+    })();
+  }, [loadMedicines]);
 
 
   // ====================================================
@@ -310,13 +441,23 @@ export default function MedicinesScreen() {
 
     setTiming('');
 
-    setTime('');
+    setScheduleRows([{ id: '', time: '', quantity: '1' }]);
 
     setFrequency('Once Daily');
 
     setStartDate('');
 
     setEndDate('');
+
+    setInitialQuantity('');
+
+    setStockUnit('');
+
+    setRefillThreshold('');
+
+    setDailyConsumption('');
+
+    setRefillReminderDays('');
 
     setEditingId(null);
 
@@ -360,8 +501,14 @@ export default function MedicinesScreen() {
       medicine.timing
     );
 
-    setTime(
-      medicine.time
+    setScheduleRows(
+      medicine.schedules.length > 0
+        ? medicine.schedules.map((schedule) => ({
+            id: schedule.id,
+            time: schedule.time,
+            quantity: String(schedule.quantity),
+          }))
+        : [{ id: '', time: '', quantity: '1' }]
     );
 
     setFrequency(
@@ -376,7 +523,75 @@ export default function MedicinesScreen() {
       medicine.endDate
     );
 
+    setInitialQuantity(
+      medicine.initialQuantity !== null
+        ? String(medicine.initialQuantity)
+        : ''
+    );
+
+    setStockUnit(
+      medicine.unit || ''
+    );
+
+    setRefillThreshold(
+      medicine.refillThreshold !== null
+        ? String(medicine.refillThreshold)
+        : ''
+    );
+
+    setDailyConsumption(
+      medicine.dailyConsumption !== null
+        ? String(medicine.dailyConsumption)
+        : ''
+    );
+
+    setRefillReminderDays(
+      medicine.refillReminderDays !== null
+        ? String(medicine.refillReminderDays)
+        : ''
+    );
+
     setModalVisible(true);
+
+  };
+
+
+  // ====================================================
+  // SCHEDULE ROWS
+  // ====================================================
+
+  const addScheduleRow = () => {
+
+    setScheduleRows(
+      (rows) => [
+        ...rows,
+        { id: '', time: '', quantity: '1' },
+      ]
+    );
+
+  };
+
+  const updateScheduleRow = (
+    index: number,
+    field: 'time' | 'quantity',
+    value: string
+  ) => {
+
+    setScheduleRows(
+      (rows) =>
+        rows.map((row, rowIndex) =>
+          rowIndex === index ? { ...row, [field]: value } : row
+        )
+    );
+
+  };
+
+  const removeScheduleRow = (index: number) => {
+
+    setScheduleRows(
+      (rows) =>
+        rows.length <= 1 ? rows : rows.filter((_, i) => i !== index)
+    );
 
   };
 
@@ -386,18 +601,51 @@ export default function MedicinesScreen() {
   // ====================================================
 
   const saveMedicine = async () => {
+
+    const validSchedules = scheduleRows
+      .filter((row) => row.time.trim())
+      .map((row) => ({
+        id: row.id,
+        time: row.time.trim(),
+        quantity: Math.max(1, Number(row.quantity) || 1),
+      }));
+
     if (
       !medicineName.trim() ||
       !dosage.trim() ||
       !timing.trim() ||
-      !time.trim()
+      validSchedules.length === 0
     ) {
       Alert.alert(
         'Missing Information',
-        'Please fill Medicine Name, Dosage, Timing and Time.'
+        'Please fill Medicine Name, Dosage, Timing and at least one dose time.'
       );
       return;
     }
+
+    // Reject unparseable times here so a reminder is never silently skipped.
+    const invalidTime = validSchedules.find(
+      (schedule) => !isValidMedicineTime(schedule.time)
+    );
+
+    if (invalidTime) {
+      Alert.alert(
+        'Invalid Dose Time',
+        `"${invalidTime.time}" is not a valid time. Use a format such as 8:00 AM or 20:00.`
+      );
+      return;
+    }
+
+    // Ask for notification permission up front so a denial can be surfaced
+    // instead of leaving the user with no reminders and no explanation.
+    const remindersAllowed = await requestNotificationPermission();
+
+    const primaryTime = validSchedules[0].time;
+
+    const derivedFrequency =
+      validSchedules.length > 1
+        ? `${validSchedules.length} times daily`
+        : frequency || 'Once Daily';
 
     try {
       const token = await AsyncStorage.getItem('authToken');
@@ -408,21 +656,39 @@ export default function MedicinesScreen() {
         return;
       }
 
-      const medicineData = {
+      const medicineData: Record<string, unknown> = {
         name: medicineName.trim(),
         dosage: dosage.trim(),
         timing: timing.trim(),
-        time: time.trim(),
-        frequency,
+        time: primaryTime,
+        frequency: derivedFrequency,
         startDate: startDate.trim(),
         endDate: endDate.trim(),
+        initialQuantity: initialQuantity.trim(),
+        unit: stockUnit.trim(),
+        refillThreshold: refillThreshold.trim(),
+        dailyConsumption: dailyConsumption.trim(),
+        refillReminderDays: refillReminderDays.trim(),
+        schedules: validSchedules.map((schedule) => ({
+          ...(schedule.id && /^[a-f\d]{24}$/i.test(schedule.id)
+            ? { _id: schedule.id }
+            : {}),
+          time: schedule.time,
+          quantity: schedule.quantity,
+        })),
       };
 
-      const url = editingId
-        ? `${API_URL}/api/medicines/${editingId}`
-        : `${API_URL}/api/medicines`;
+      // Starting stock only applies when creating; edits must not reset
+      // the remaining quantity that refills/consumption have changed.
+      if (!editingId) {
+        medicineData.remainingQuantity = initialQuantity.trim();
+      }
 
-      const response = await fetch(url, {
+      const url = editingId
+        ? `/api/medicines/${editingId}`
+        : `/api/medicines`;
+
+      const response = await apiFetch(url, {
         method: editingId ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -431,36 +697,25 @@ export default function MedicinesScreen() {
         body: JSON.stringify(medicineData),
       });
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
       if (!response.ok) {
         throw new Error(data.message || 'Unable to save medicine');
       }
 
-      // Schedule or replace the local reminder after MongoDB saves the medicine.
-      // This safely does nothing in the browser; native scheduling is for Android/iOS.
-      if (data.medicine) {
-        try {
-          await replaceMedicineReminder({
-            _id: data.medicine._id || data.medicine.id,
-            name: data.medicine.name || medicineData.name,
-            dosage: data.medicine.dosage || medicineData.dosage,
-            timing: data.medicine.timing || medicineData.timing,
-            time: data.medicine.time || medicineData.time,
-            frequency: data.medicine.frequency || medicineData.frequency,
-            startDate: data.medicine.startDate ?? medicineData.startDate,
-            endDate: data.medicine.endDate ?? medicineData.endDate,
-          });
-        } catch (reminderError) {
-          // A reminder scheduling issue should not undo a successfully saved medicine.
-          console.log('Medicine saved, but reminder scheduling failed:', reminderError);
-        }
-      }
-
+      // Reminders are reconciled in the background by loadMedicines() below,
+      // which only recreates doses whose schedule actually changed.
       await loadMedicines();
 
       setModalVisible(false);
       resetForm();
+
+      if (!remindersAllowed) {
+        Alert.alert(
+          'Reminders Are Off',
+          'Notifications are disabled for Health Saathi, so medicine reminders will not appear. Enable notifications in your device settings to receive them.'
+        );
+      }
     } catch (error) {
       console.log('Medicine save error:', error);
       Alert.alert(
@@ -499,8 +754,8 @@ const deleteMedicine = (id: string) => {
               return;
             }
 
-            const response = await fetch(
-              `${API_URL}/api/medicines/${id}`,
+            const response = await apiFetch(
+              `/api/medicines/${id}`,
               {
                 method: 'DELETE',
                 headers: {
@@ -509,7 +764,7 @@ const deleteMedicine = (id: string) => {
               }
             );
 
-            const data = await response.json();
+            const data = await parseJson(response);
 
             if (!response.ok) {
               throw new Error(
@@ -545,55 +800,13 @@ const deleteMedicine = (id: string) => {
 
 
   // ====================================================
-  // ADD HISTORY
+  // MARK DOSE (per-dose status)
   // ====================================================
 
-  const addHistory = async (
+  const markDose = async (
     medicine: Medicine,
+    dose: MedicineDose,
     status: 'Taken' | 'Missed'
-  ) => {
-    const token = await AsyncStorage.getItem('authToken');
-
-    if (!token) {
-      throw new Error('Authentication token not found. Please log in again.');
-    }
-
-    const now = new Date();
-
-    const response = await fetch(`${API_URL}/api/history`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        medicineId: medicine.id,
-        medicineName: medicine.name,
-        dosage: medicine.dosage,
-        time: medicine.time,
-        status,
-        scheduledDate: now.toISOString(),
-        takenAt: status === 'Taken' ? now.toISOString() : null,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Unable to save medicine history.');
-    }
-
-    console.log('Medicine history saved to MongoDB');
-  };
-
-
-  // ====================================================
-  // CHANGE STATUS
-  // ====================================================
-
-  const changeStatus = async (
-    medicine: Medicine,
-    status: MedicineStatus
   ) => {
     try {
       const token = await AsyncStorage.getItem('authToken');
@@ -604,47 +817,132 @@ const deleteMedicine = (id: string) => {
         return;
       }
 
-      const response = await fetch(
-        `${API_URL}/api/medicines/${medicine.id}`,
+      const response = await apiFetch(
+        `/api/medicines/${medicine.id}/doses/${dose.doseId}/status`,
         {
-          method: 'PUT',
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ status }),
+          body: JSON.stringify({
+            status,
+            date: new Date().toISOString(),
+          }),
         }
       );
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
       if (!response.ok) {
-        throw new Error(data.message || 'Unable to update medicine status');
+        throw new Error(data.message || 'Unable to update dose status');
       }
 
-      setMedicines((current) =>
-        current.map((item) =>
-          item.id === medicine.id
-            ? { ...item, status }
-            : item
-        )
-      );
-
-      if (status === 'Taken' || status === 'Missed') {
-        await addHistory(
-          { ...medicine, status },
-          status
-        );
-      }
+      await loadMedicines();
     } catch (error) {
-      console.log('Medicine status update error:', error);
+      console.log('Dose status update error:', error);
       Alert.alert(
         'Error',
         error instanceof Error
           ? error.message
-          : 'Unable to update medicine status.'
+          : 'Unable to update dose status.'
       );
     }
+  };
+
+
+  // ====================================================
+  // REFILL
+  // ====================================================
+
+  const openRefillModal = (medicine: Medicine) => {
+    setRefillMedicine(medicine);
+    setRefillQuantity('');
+    setRefillModalVisible(true);
+  };
+
+  const closeRefillModal = () => {
+    setRefillModalVisible(false);
+    setRefillMedicine(null);
+    setRefillQuantity('');
+  };
+
+  const submitRefill = async () => {
+    if (!refillMedicine) return;
+
+    const qty = Number(refillQuantity);
+
+    if (!refillQuantity.trim() || !Number.isFinite(qty) || qty <= 0) {
+      Alert.alert('Invalid Quantity', 'Enter a quantity greater than 0.');
+      return;
+    }
+
+    try {
+      setRefilling(true);
+
+      const token = await AsyncStorage.getItem('authToken');
+
+      if (!token) {
+        Alert.alert('Login Required', 'Please login again.');
+        router.replace('/');
+        return;
+      }
+
+      const response = await apiFetch(
+        `/api/medicines/${refillMedicine.id}/refill`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            quantityAdded: qty,
+            unit: refillMedicine.unit || undefined,
+          }),
+        }
+      );
+
+      const data = await parseJson(response);
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to record refill');
+      }
+
+      await loadMedicines();
+
+      Alert.alert(
+        'Refill Recorded',
+        `Added ${qty} ${refillMedicine.unit || 'units'}. New stock: ${
+          data.newQuantity ?? ''
+        }.`
+      );
+
+      closeRefillModal();
+    } catch (error) {
+      console.log('Refill error:', error);
+
+      Alert.alert(
+        'Error',
+        error instanceof Error ? error.message : 'Unable to record refill.'
+      );
+    } finally {
+      setRefilling(false);
+    }
+  };
+
+  const formatRunOutDate = (value: string) => {
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+
+    return date.toLocaleDateString(undefined, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
   };
 
 
@@ -870,6 +1168,176 @@ const deleteMedicine = (id: string) => {
             {medicine.timing}
           </Text>
 
+          {medicine.todayDoses.length > 0 && (
+            <View
+              style={
+                styles.doseList
+              }
+            >
+
+              {medicine.todayDoses.map(
+                (dose) => (
+                  <View
+                    key={dose.doseId}
+                    style={
+                      styles.doseRow
+                    }
+                  >
+
+                    <Text
+                      style={
+                        styles.doseTime
+                      }
+                    >
+                      {dose.time}
+
+                      {dose.quantity > 1
+                        ? ` · ${dose.quantity} doses`
+                        : ''}
+                    </Text>
+
+
+                    <StatusBadge
+                      status={
+                        dose.status
+                      }
+                    />
+
+
+                    {dose.status ===
+                      'Pending' && (
+                      <View
+                        style={
+                          styles.doseActions
+                        }
+                      >
+
+                        <Pressable
+                          onPress={() =>
+                            markDose(
+                              medicine,
+                              dose,
+                              'Taken'
+                            )
+                          }
+
+                          style={
+                            styles.doseActionButton
+                          }
+                        >
+
+                          <Text
+                            style={
+                              styles.doseActionText
+                            }
+                          >
+                            Taken
+                          </Text>
+
+                        </Pressable>
+
+
+                        <Pressable
+                          onPress={() =>
+                            markDose(
+                              medicine,
+                              dose,
+                              'Missed'
+                            )
+                          }
+
+                          style={
+                            styles.doseActionButton
+                          }
+                        >
+
+                          <Text
+                            style={
+                              styles.doseActionText
+                            }
+                          >
+                            Missed
+                          </Text>
+
+                        </Pressable>
+
+                      </View>
+                    )}
+
+                  </View>
+                )
+              )}
+
+            </View>
+          )}
+
+          {medicine.remainingQuantity !== null ? (
+            <View
+              style={
+                styles.stockRow
+              }
+            >
+
+              <Ionicons
+                name="cube-outline"
+                size={13}
+                color={
+                  COLORS.secondaryText
+                }
+              />
+
+              <Text
+                style={
+                  styles.stockText
+                }
+              >
+                {medicine.remainingQuantity}
+                {' '}
+                {medicine.unit || 'units'}
+                {medicine.estimatedRunOutDate
+                  ? ` · runs out ${formatRunOutDate(
+                      medicine.estimatedRunOutDate
+                    )}`
+                  : ''}
+              </Text>
+
+            </View>
+          ) : (
+            <Text
+              style={
+                styles.stockMuted
+              }
+            >
+              Stock not tracked
+            </Text>
+          )}
+
+          {medicine.needsRefill && (
+            <View
+              style={
+                styles.lowStockBadge
+              }
+            >
+
+              <Ionicons
+                name="alert-circle-outline"
+                size={13}
+                color={
+                  COLORS.missedText
+                }
+              />
+
+              <Text
+                style={
+                  styles.lowStockText
+                }
+              >
+                Refill needed
+              </Text>
+
+            </View>
+          )}
+
         </View>
 
       </View>
@@ -901,9 +1369,8 @@ const deleteMedicine = (id: string) => {
 
           <Pressable
             onPress={() =>
-              changeStatus(
-                medicine,
-                'Taken'
+              openRefillModal(
+                medicine
               )
             }
 
@@ -913,35 +1380,14 @@ const deleteMedicine = (id: string) => {
           >
 
             <Text
-              style={
-                styles.actionText
-              }
+              style={[
+                styles.actionText,
+                {
+                  color: COLORS.primaryBlue,
+                },
+              ]}
             >
-              Taken
-            </Text>
-
-          </Pressable>
-
-
-          <Pressable
-            onPress={() =>
-              changeStatus(
-                medicine,
-                'Missed'
-              )
-            }
-
-            style={
-              styles.actionButton
-            }
-          >
-
-            <Text
-              style={
-                styles.actionText
-              }
-            >
-              Missed
+              Refill
             </Text>
 
           </Pressable>
@@ -1638,14 +2084,13 @@ const deleteMedicine = (id: string) => {
               </View>
 
 
-              {/* TIME */}
+              {/* SCHEDULE (DOSE TIMES) */}
 
               <View
                 style={[
                   styles.field,
 
-                  isDesktop &&
-                    styles.fieldHalf,
+                  styles.fieldFull,
                 ]}
               >
 
@@ -1654,29 +2099,125 @@ const deleteMedicine = (id: string) => {
                     styles.label
                   }
                 >
-                  Time
+                  Dose times per day
                 </Text>
 
 
-                <TextInput
-                  value={
-                    time
-                  }
+                {scheduleRows.map(
+                  (row, index) => (
+                    <View
+                      key={`schedule-${index}`}
+                      style={
+                        styles.scheduleRow
+                      }
+                    >
 
-                  onChangeText={
-                    setTime
-                  }
+                      <TextInput
+                        value={
+                          row.time
+                        }
 
-                  placeholder="e.g. 8:00 AM"
+                        onChangeText={(value) =>
+                          updateScheduleRow(
+                            index,
+                            'time',
+                            value
+                          )
+                        }
 
-                  placeholderTextColor={
-                    COLORS.secondaryText
+                        placeholder="e.g. 8:00 AM"
+
+                        placeholderTextColor={
+                          COLORS.secondaryText
+                        }
+
+                        style={[
+                          styles.input,
+                          styles.scheduleTimeInput,
+                        ]}
+                      />
+
+
+                      <TextInput
+                        value={
+                          row.quantity
+                        }
+
+                        onChangeText={(value) =>
+                          updateScheduleRow(
+                            index,
+                            'quantity',
+                            value
+                          )
+                        }
+
+                        placeholder="Qty"
+
+                        keyboardType="numeric"
+
+                        placeholderTextColor={
+                          COLORS.secondaryText
+                        }
+
+                        style={[
+                          styles.input,
+                          styles.scheduleQtyInput,
+                        ]}
+                      />
+
+
+                      <Pressable
+                        onPress={() =>
+                          removeScheduleRow(index)
+                        }
+
+                        style={
+                          styles.scheduleRemoveButton
+                        }
+                      >
+
+                        <Ionicons
+                          name="close-outline"
+                          size={20}
+                          color={
+                            COLORS.missedText
+                          }
+                        />
+
+                      </Pressable>
+
+                    </View>
+                  )
+                )}
+
+
+                <Pressable
+                  onPress={
+                    addScheduleRow
                   }
 
                   style={
-                    styles.input
+                    styles.addScheduleButton
                   }
-                />
+                >
+
+                  <Ionicons
+                    name="add-outline"
+                    size={18}
+                    color={
+                      COLORS.primaryBlue
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.addScheduleText
+                    }
+                  >
+                    Add another time
+                  </Text>
+
+                </Pressable>
 
               </View>
 
@@ -1809,6 +2350,231 @@ const deleteMedicine = (id: string) => {
 
               </View>
 
+
+              {/* STOCK & REFILL */}
+
+              <Text
+                style={[
+                  styles.sectionLabel,
+                  isDesktop && styles.fieldFull,
+                ]}
+              >
+                Stock & Refill
+              </Text>
+
+
+              <View
+                style={[
+                  styles.field,
+
+                  isDesktop &&
+                    styles.fieldHalf,
+                ]}
+              >
+
+                <Text
+                  style={
+                    styles.label
+                  }
+                >
+                  Initial Quantity
+                </Text>
+
+
+                <TextInput
+                  value={
+                    initialQuantity
+                  }
+
+                  onChangeText={
+                    setInitialQuantity
+                  }
+
+                  keyboardType="numeric"
+
+                  placeholder="e.g. 30"
+
+                  placeholderTextColor={
+                    COLORS.secondaryText
+                  }
+
+                  style={
+                    styles.input
+                  }
+                />
+
+              </View>
+
+
+              <View
+                style={[
+                  styles.field,
+
+                  isDesktop &&
+                    styles.fieldHalf,
+                ]}
+              >
+
+                <Text
+                  style={
+                    styles.label
+                  }
+                >
+                  Unit
+                </Text>
+
+
+                <TextInput
+                  value={
+                    stockUnit
+                  }
+
+                  onChangeText={
+                    setStockUnit
+                  }
+
+                  placeholder="e.g. tablets"
+
+                  placeholderTextColor={
+                    COLORS.secondaryText
+                  }
+
+                  style={
+                    styles.input
+                  }
+                />
+
+              </View>
+
+
+              <View
+                style={[
+                  styles.field,
+
+                  isDesktop &&
+                    styles.fieldHalf,
+                ]}
+              >
+
+                <Text
+                  style={
+                    styles.label
+                  }
+                >
+                  Refill Threshold
+                </Text>
+
+
+                <TextInput
+                  value={
+                    refillThreshold
+                  }
+
+                  onChangeText={
+                    setRefillThreshold
+                  }
+
+                  keyboardType="numeric"
+
+                  placeholder="e.g. 5"
+
+                  placeholderTextColor={
+                    COLORS.secondaryText
+                  }
+
+                  style={
+                    styles.input
+                  }
+                />
+
+              </View>
+
+
+              <View
+                style={[
+                  styles.field,
+
+                  isDesktop &&
+                    styles.fieldHalf,
+                ]}
+              >
+
+                <Text
+                  style={
+                    styles.label
+                  }
+                >
+                  Daily Consumption
+                </Text>
+
+
+                <TextInput
+                  value={
+                    dailyConsumption
+                  }
+
+                  onChangeText={
+                    setDailyConsumption
+                  }
+
+                  keyboardType="numeric"
+
+                  placeholder="e.g. 2"
+
+                  placeholderTextColor={
+                    COLORS.secondaryText
+                  }
+
+                  style={
+                    styles.input
+                  }
+                />
+
+              </View>
+
+
+              <View
+                style={[
+                  styles.field,
+
+                  isDesktop &&
+                    styles.fieldHalf,
+                ]}
+              >
+
+                <Text
+                  style={
+                    styles.label
+                  }
+                >
+                  Refill Reminder (days)
+                </Text>
+
+
+                <TextInput
+                  value={
+                    refillReminderDays
+                  }
+
+                  onChangeText={
+                    setRefillReminderDays
+                  }
+
+                  keyboardType="numeric"
+
+                  placeholder="e.g. 3"
+
+                  placeholderTextColor={
+                    COLORS.secondaryText
+                  }
+
+                  style={
+                    styles.input
+                  }
+                />
+
+              </View>
+
             </ScrollView>
 
 
@@ -1878,6 +2644,197 @@ const deleteMedicine = (id: string) => {
                   {editingId
                     ? 'Save Changes'
                     : 'Save Reminder'}
+                </Text>
+
+              </Pressable>
+
+            </View>
+
+          </View>
+
+        </View>
+
+      </Modal>
+
+
+      {/* ================================================= */}
+      {/* REFILL MODAL */}
+      {/* ================================================= */}
+
+      <Modal
+        visible={refillModalVisible}
+
+        transparent
+
+        animationType="fade"
+
+        onRequestClose={closeRefillModal}
+      >
+
+        <View
+          style={
+            styles.modalOverlay
+          }
+        >
+
+          <View
+            style={[
+              styles.modal,
+
+              isMobile &&
+                styles.modalMobile,
+
+              {
+                maxWidth: 420,
+              },
+            ]}
+          >
+
+            <View
+              style={
+                styles.modalHeader
+              }
+            >
+
+              <View>
+
+                <Text
+                  style={
+                    styles.modalTitle
+                  }
+                >
+                  Record Refill
+                </Text>
+
+
+                <Text
+                  style={
+                    styles.modalSubtitle
+                  }
+                >
+                  {refillMedicine
+                    ? `${refillMedicine.name} · ${
+                        refillMedicine.remainingQuantity ?? 0
+                      } ${refillMedicine.unit || 'units'} in stock`
+                    : ''}
+                </Text>
+
+              </View>
+
+
+              <Pressable
+                onPress={closeRefillModal}
+              >
+
+                <Ionicons
+                  name="close"
+                  size={25}
+                  color={
+                    COLORS.mainText
+                  }
+                />
+
+              </Pressable>
+
+            </View>
+
+
+            <View
+              style={
+                styles.field
+              }
+            >
+
+              <Text
+                style={
+                  styles.label
+                }
+              >
+                Quantity Added
+              </Text>
+
+
+              <TextInput
+                value={
+                  refillQuantity
+                }
+
+                onChangeText={
+                  setRefillQuantity
+                }
+
+                keyboardType="numeric"
+
+                placeholder="e.g. 30"
+
+                placeholderTextColor={
+                  COLORS.secondaryText
+                }
+
+                style={
+                  styles.input
+                }
+              />
+
+            </View>
+
+
+            <View
+              style={[
+                styles.modalButtons,
+
+                isMobile &&
+                  styles.modalButtonsMobile,
+              ]}
+            >
+
+              <Pressable
+                onPress={closeRefillModal}
+
+                style={
+                  styles.cancelButton
+                }
+              >
+
+                <Text
+                  style={
+                    styles.cancelText
+                  }
+                >
+                  Cancel
+                </Text>
+
+              </Pressable>
+
+
+              <Pressable
+                onPress={submitRefill}
+
+                disabled={refilling}
+
+                style={[
+                  styles.saveButton,
+
+                  refilling && {
+                    opacity: 0.6,
+                  },
+                ]}
+              >
+
+                <Ionicons
+                  name="add-circle-outline"
+                  size={19}
+                  color={
+                    COLORS.white
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.saveText
+                  }
+                >
+                  {refilling ? 'Saving...' : 'Save Refill'}
                 </Text>
 
               </Pressable>
@@ -2536,6 +3493,64 @@ const styles =
   },
 
 
+  doseList: {
+    marginTop: 8,
+
+    gap: 6,
+  },
+
+
+  doseRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    flexWrap: 'wrap',
+
+    gap: 8,
+  },
+
+
+  doseTime: {
+    fontFamily:
+      'Inter_500Medium',
+
+    fontSize: 13,
+
+    color:
+      COLORS.mainText,
+
+    minWidth: 74,
+  },
+
+
+  doseActions: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 12,
+  },
+
+
+  doseActionButton: {
+    paddingHorizontal: 3,
+
+    paddingVertical: 4,
+  },
+
+
+  doseActionText: {
+    fontFamily:
+      'Inter_600SemiBold',
+
+    fontSize: 12,
+
+    color:
+      COLORS.primaryBlue,
+  },
+
+
   medicineRight: {
     flexDirection: 'row',
 
@@ -2988,6 +4003,152 @@ const styles =
 
     fontFamily:
       'Inter_600SemiBold',
+  },
+
+
+  // ====================================================
+  // REFILL / STOCK
+  // ====================================================
+
+  stockRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 5,
+
+    marginTop: 5,
+  },
+
+
+  stockText: {
+    fontFamily:
+      'Inter_500Medium',
+
+    fontSize: 13,
+
+    color:
+      COLORS.mainText,
+  },
+
+
+  stockMuted: {
+    fontFamily:
+      'Inter_400Regular',
+
+    fontSize: 13,
+
+    color:
+      COLORS.secondaryText,
+
+    marginTop: 4,
+  },
+
+
+  lowStockBadge: {
+    alignSelf: 'flex-start',
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 4,
+
+    paddingHorizontal: 9,
+
+    paddingVertical: 3,
+
+    borderRadius: 12,
+
+    backgroundColor:
+      COLORS.missedBg,
+
+    marginTop: 6,
+  },
+
+
+  lowStockText: {
+    fontFamily:
+      'Inter_600SemiBold',
+
+    fontSize: 12,
+
+    color:
+      COLORS.missedText,
+  },
+
+
+  sectionLabel: {
+    fontFamily:
+      'Poppins_600SemiBold',
+
+    fontSize: 15,
+
+    color:
+      COLORS.mainText,
+
+    marginBottom: 12,
+
+    marginTop: 4,
+  },
+
+
+  fieldFull: {
+    width: '100%',
+  },
+
+
+  scheduleRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 8,
+
+    marginBottom: 10,
+  },
+
+
+  scheduleTimeInput: {
+    flex: 1,
+  },
+
+
+  scheduleQtyInput: {
+    width: 70,
+  },
+
+
+  scheduleRemoveButton: {
+    width: 34,
+
+    height: 34,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+  },
+
+
+  addScheduleButton: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 6,
+
+    paddingVertical: 8,
+  },
+
+
+  addScheduleText: {
+    fontFamily:
+      'Inter_600SemiBold',
+
+    fontSize: 13,
+
+    color:
+      COLORS.primaryBlue,
   },
 
 });

@@ -20,7 +20,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.sawan_mandalwar.healthsaathimobile"
+      "package": "com.sawan_mandalwar.healthsaathimobile",
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ]
     },
 
     "web": {
@@ -40,9 +43,17 @@
       ],
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Health-Saathi to access your photos so you can upload a prescription.",
+          "cameraPermission": "Allow Health-Saathi to use your camera so you can capture a prescription.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-notifications",
         {
-          "defaultChannel": "medicine-reminders"
+          "defaultChannel": "medicine-reminders-v2"
         }
       ]
     ],

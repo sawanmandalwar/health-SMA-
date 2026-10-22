@@ -503,64 +503,13 @@ export default function HospitalsScreen() {
   };
 
 
-  // ==================================================
-  // BOTTOM TAB
-  // ==================================================
+// ==================================================
+// BOTTOM TAB
+// ==================================================
 
-  const BottomTab = ({
-    icon,
-    label,
-    active,
-    onPress,
-  }: {
-    icon: keyof typeof Ionicons.glyphMap;
-
-    label: string;
-
-    active?: boolean;
-
-    onPress: () => void;
-  }) => {
-    return (
-      <Pressable
-        onPress={onPress}
-        style={[
-          styles.bottomTab,
-
-          active &&
-            styles.bottomTabActive,
-        ]}
-      >
-
-        <Ionicons
-          name={icon}
-          size={22}
-          color={
-            active
-              ? COLORS.primaryBlue
-              : COLORS.secondaryText
-          }
-        />
-
-        <Text
-          style={[
-            styles.bottomTabText,
-
-            active &&
-              styles.bottomTabTextActive,
-          ]}
-        >
-          {label}
-        </Text>
-
-      </Pressable>
-    );
-  };
-
-
-  // ==================================================
-  // RETURN
-  // ==================================================
+// ==================================================
+// RETURN
+// ==================================================
 
   return (
     <View style={styles.screen}>
@@ -1004,6 +953,61 @@ export default function HospitalsScreen() {
 
 
 // ====================================================
+// BOTTOM TAB COMPONENT
+// ====================================================
+
+const BottomTab = ({
+  icon,
+  label,
+  active,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+
+  label: string;
+
+  active?: boolean;
+
+  onPress: () => void;
+}) => {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.bottomTab,
+
+        active &&
+          styles.bottomTabActive,
+      ]}
+    >
+
+      <Ionicons
+        name={icon}
+        size={22}
+        color={
+          active
+            ? COLORS.primaryBlue
+            : COLORS.secondaryText
+        }
+      />
+
+      <Text
+        style={[
+          styles.bottomTabText,
+
+          active &&
+            styles.bottomTabTextActive,
+        ]}
+      >
+        {label}
+      </Text>
+
+    </Pressable>
+  );
+};
+
+
+// ====================================================
 // STYLES
 // ====================================================
 
@@ -1261,7 +1265,7 @@ const styles = StyleSheet.create({
   },
 
   mapPattern: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
 
     opacity: 0.65,
   },

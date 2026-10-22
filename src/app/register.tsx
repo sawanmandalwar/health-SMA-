@@ -1,6 +1,7 @@
 
 import { router } from 'expo-router';
 import React, { useState } from 'react';
+import { apiFetch, getApiErrorMessage, parseJson } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
@@ -36,12 +37,6 @@ export default function RegisterScreen() {
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // =========================
-  // BACKEND URL
-  // =========================
-
-const API_URL = 'http://10.170.142.154:5000';
 
   // =========================
   // REGISTER
@@ -91,7 +86,7 @@ const API_URL = 'http://10.170.142.154:5000';
 
       console.log('Sending registration request...');
 
-      const response = await fetch(`${API_URL}/api/auth/register`, {
+      const response = await apiFetch(`/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -104,9 +99,9 @@ const API_URL = 'http://10.170.142.154:5000';
         }),
       });
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
-      console.log('Register response:', data);
+      console.log('[register] response status:', response.status);
 
       if (!response.ok) {
         setError(data.message || 'Registration failed. Please try again.');
@@ -131,9 +126,7 @@ router.replace({
     } catch (error) {
       console.log('Registration error:', error);
 
-      setError(
-        'Unable to connect to the server. Please make sure the backend is running.'
-      );
+      setError(getApiErrorMessage(error));
     } finally {
       setLoading(false);
     }

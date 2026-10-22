@@ -1,6 +1,4 @@
-import { Image } from 'react-native';
-import React, { useEffect, useRef } from 'react';
-import {
+import { Image ,
   Animated,
   Easing,
   Platform,
@@ -9,6 +7,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 
@@ -19,27 +19,27 @@ export default function WelcomeScreen() {
   const params = useLocalSearchParams<{ name?: string }>();
   const userName = params.name || 'User';
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.92)).current;
-  const slideAnim = useRef(new Animated.Value(25)).current;
+  const fadeAnim = useRef(new Animated.Value(0));
+  const scaleAnim = useRef(new Animated.Value(0.92));
+  const slideAnim = useRef(new Animated.Value(25));
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
+Animated.parallel([
+      Animated.timing(fadeAnim.current, {
         toValue: 1,
         duration: 700,
         easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       }),
 
-      Animated.spring(scaleAnim, {
+      Animated.spring(scaleAnim.current, {
         toValue: 1,
         friction: 7,
         tension: 45,
         useNativeDriver: true,
       }),
 
-      Animated.timing(slideAnim, {
+      Animated.timing(slideAnim.current, {
         toValue: 0,
         duration: 700,
         easing: Easing.out(Easing.ease),
@@ -67,10 +67,10 @@ export default function WelcomeScreen() {
             styles.content,
             isLargeScreen && styles.webContent,
             {
-              opacity: fadeAnim,
+              opacity: fadeAnim.current,
               transform: [
-                { scale: scaleAnim },
-                { translateY: slideAnim },
+                { scale: scaleAnim.current },
+                { translateY: slideAnim.current },
               ],
             },
           ]}

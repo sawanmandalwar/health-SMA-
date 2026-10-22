@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Alert,
   Animated,
@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
+import { apiFetch, parseJson } from '../services/api';
 const COLORS = {
   primaryBlue: '#1E76B6',
   darkBlue: '#155A8C',
@@ -29,7 +30,6 @@ const COLORS = {
 };
 
 const PROFILE_KEY = '@health_saathi_profile';
-const API_URL = 'http://10.170.142.154:5000';
 
 interface ProfileData {
   name: string;
@@ -78,16 +78,6 @@ export default function ProfileScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-useFocusEffect(
-  React.useCallback(() => {
-    loadProfile();
-
-    return () => {
-      // Nothing needed here
-    };
-  }, [])
-);
-
   const loadProfile = async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
@@ -98,14 +88,14 @@ useFocusEffect(
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/profile`, {
+      const response = await apiFetch(`/api/profile`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
       if (!response.ok) {
         throw new Error(data.message || 'Unable to load profile');
@@ -153,6 +143,16 @@ useFocusEffect(
     setEmergencyPhone(data.emergencyPhone);
   };
 
+useFocusEffect(
+  React.useCallback(() => {
+    loadProfile();
+
+    return () => {
+      // Nothing needed here
+    };
+  }, [])
+);
+
   const saveProfile = async () => {
     const updatedProfile: ProfileData = {
       name: name.trim(),
@@ -179,7 +179,7 @@ useFocusEffect(
         return;
       }
 
-      const response = await fetch(`${API_URL}/api/profile`, {
+      const response = await apiFetch(`/api/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -191,7 +191,7 @@ useFocusEffect(
         }),
       });
 
-      const data = await response.json();
+      const data = await parseJson(response);
 
       if (!response.ok) {
         throw new Error(data.message || 'Unable to update profile');
@@ -903,20 +903,18 @@ function BottomTab({
   active?: boolean;
   onPress: () => void;
 }) {
-  const scale = useRef(
-    new Animated.Value(1)
-  ).current;
+  const scale = useRef(new Animated.Value(1));
 
   return (
     <Pressable
       onPressIn={() =>
-        Animated.spring(scale, {
+        Animated.spring(scale.current, {
           toValue: 1.12,
           useNativeDriver: true,
         }).start()
       }
       onPressOut={() =>
-        Animated.spring(scale, {
+        Animated.spring(scale.current, {
           toValue: 1,
           useNativeDriver: true,
         }).start()
@@ -928,7 +926,7 @@ function BottomTab({
         style={[
           styles.bottomTabInner,
           {
-            transform: [{ scale }],
+            transform: [{ scale: scale.current }],
           },
         ]}
       >

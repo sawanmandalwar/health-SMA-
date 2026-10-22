@@ -1,8 +1,11 @@
 
 
-import React, { useEffect, useRef } from 'react';
-import { scheduleWebMedicineReminder } from '../services/webNotificationService';
+import React, { useCallback, useEffect } from 'react';
 import {
+
+  ActivityIndicator,
+
+  Alert,
 
   Animated,
 
@@ -25,7 +28,8 @@ import {
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { apiFetch, parseJson } from '../services/api';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -34,8 +38,6 @@ import { Svg, Circle } from 'react-native-svg';
 
 import { useFonts } from 'expo-font';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-type NotificationItem = { _id: string; title: string; message: string; type: 'Medicine' | 'Appointment' | 'General'; isRead: boolean; createdAt: string; };
 
 
 
@@ -62,6 +64,74 @@ import {
   Inter_700Bold,
 
 } from '@expo-google-fonts/inter';
+
+type NotificationItem = { _id: string; title: string; message: string; type: 'Medicine' | 'Appointment' | 'General'; isRead: boolean; createdAt: string; };
+
+type DashboardMedicineStatus = 'Pending' | 'Taken' | 'Missed';
+
+type DashboardDose = {
+  doseId: string;
+  time: string;
+  quantity: number;
+  status: DashboardMedicineStatus;
+};
+
+type DashboardMedicine = {
+  id: string;
+  name: string;
+  dosage: string;
+  timing: string;
+  time: string;
+  frequency: string;
+  status: DashboardMedicineStatus;
+  schedules?: { id: string; time: string; quantity: number }[];
+  doses?: DashboardDose[];
+};
+
+type DashboardAppointment = {
+  id: string;
+  doctor: string;
+  specialty: string;
+  hospital: string;
+  date: string;
+  time: string;
+  reason: string;
+  status: string;
+};
+
+type DashboardDay = {
+  date: string;
+  label: string;
+  taken: number;
+  missed: number;
+};
+
+type DashboardData = {
+  user: { id: string; name: string; email: string; phone: string };
+  today: string;
+  stats: {
+    medicinesScheduled: number;
+    taken: number;
+    missed: number;
+    pending: number;
+    dosesScheduled?: number;
+    dosesTaken?: number;
+    dosesMissed?: number;
+    dosesPending?: number;
+    upcomingAppointments: number;
+  };
+  medicines: DashboardMedicine[];
+  weeklyAdherence: {
+    taken: number;
+    missed: number;
+    totalDue: number;
+    percentage: number;
+    days: DashboardDay[];
+  };
+  nextAppointment: DashboardAppointment | null;
+  unreadNotifications: number;
+};
+
 
 
 
@@ -109,22 +179,27 @@ export default function HomeScreen() {
   const [notificationsLoading, setNotificationsLoading] = React.useState(false);
   const [notificationsError, setNotificationsError] = React.useState('');
 
+  const [dashboard, setDashboard] = React.useState<DashboardData | null>(null);
+  const [dashboardLoading, setDashboardLoading] = React.useState(true);
+  const [dashboardError, setDashboardError] = React.useState('');
+  const [userName, setUserName] = React.useState('');
+  const [updatingMedicineId, setUpdatingMedicineId] = React.useState<string | null>(null);
+
 
 
   const isDesktop = width >= 900;
 
-  const isTablet = width >= 600 && width < 900;
 
 
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const slideAnim = useRef(new Animated.Value(18)).current;
 
+  const [fadeAnim] = React.useState(() => new Animated.Value(0));
+
+  const [slideAnim] = React.useState(() => new Animated.Value(18));
 
 
   const [fontsLoaded] = useFonts({
-
     Poppins_400Regular,
 
     Poppins_500Medium,
@@ -175,25 +250,9 @@ export default function HomeScreen() {
 
     ]).start();
 
-  }, []);
+  }, [fadeAnim, slideAnim]);
 
 
-
-  // Temporary browser-only notification test. Remove after desktop testing.
-  const testMedicineNotification = async () => {
-    try {
-      const scheduled = await scheduleWebMedicineReminder('Metformin', '500 mg', 10);
-
-      if (scheduled) {
-        alert('Test reminder scheduled. Keep this browser tab open for 10 seconds.');
-      } else {
-        alert('Notification permission was not granted or notifications are unsupported.');
-      }
-    } catch (error) {
-      console.error('Notification test failed:', error);
-      alert('Unable to schedule the test notification. Check the browser console.');
-    }
-  };
 
   const fetchNotifications = async () => {
     setNotificationsLoading(true);
@@ -206,10 +265,11 @@ export default function HomeScreen() {
         setUnreadCount(0);
         return;
       }
-      const response = await fetch('http://localhost:5000/api/notifications', {
+      const response = await apiFetch(`/api/notifications`, {
         headers: { Authorization: `Bearer ${token}` },
+        
       });
-      const data = await response.json();
+      const data = await parseJson(response);
       if (!response.ok || !data.success) throw new Error(data.message || 'Could not load notifications.');
       setNotifications(data.notifications || []);
       setUnreadCount(data.unreadCount || 0);
@@ -225,10 +285,10 @@ export default function HomeScreen() {
     try {
       const token = await AsyncStorage.getItem('authToken');
       if (!token) { setNotificationsError('Please log in again to update notifications.'); return; }
-      const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
+      const response = await apiFetch(`/api/notifications/${notificationId}/read`, {
         method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await response.json();
+      const data = await parseJson(response);
       if (!response.ok || !data.success) throw new Error(data.message || 'Could not mark as read.');
       setNotifications((current) => current.map((item) => item._id === notificationId ? { ...item, isRead: true } : item));
       setUnreadCount((count) => Math.max(0, count - 1));
@@ -238,7 +298,198 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => { if (notificationsOpen) fetchNotifications(); }, [notificationsOpen]);
+  // ==========================================================
+  // DASHBOARD DATA (real backend data)
+  // ==========================================================
+
+  const loadCachedUser = useCallback(async () => {
+    try {
+      const raw = await AsyncStorage.getItem('user');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.name) setUserName(parsed.name);
+      }
+    } catch (error) {
+      console.error('Unable to read cached user:', error);
+    }
+  }, []);
+
+  const loadDashboard = useCallback(async (silent = false) => {
+    if (!silent) setDashboardLoading(true);
+    setDashboardError('');
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        setDashboardError('Please log in again to view your dashboard.');
+        return;
+      }
+
+      const response = await apiFetch(`/api/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await parseJson(response);
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Unable to load dashboard.');
+      }
+
+      setDashboard(data as DashboardData);
+      setUnreadCount(
+        typeof data.unreadNotifications === 'number' ? data.unreadNotifications : 0
+      );
+      if (data.user && data.user.name) setUserName(data.user.name);
+    } catch (error) {
+      console.error('Dashboard load error:', error);
+      setDashboardError(
+        error instanceof Error ? error.message : 'Unable to load dashboard.'
+      );
+    } finally {
+      if (!silent) setDashboardLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      await loadCachedUser();
+    })();
+  }, [loadCachedUser]);
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        await loadDashboard();
+      })();
+    }, [loadDashboard])
+  );
+
+  const updateMedicineStatus = async (
+    medicine: DashboardMedicine,
+    status: 'Taken' | 'Missed'
+  ) => {
+    if (!dashboard || updatingMedicineId) return;
+
+    const previous = dashboard;
+    setUpdatingMedicineId(medicine.id);
+
+    // Prefer the per-dose endpoint so stock is deducted exactly once.
+    const targetDose =
+      medicine.doses && medicine.doses.length > 0
+        ? medicine.doses.find((dose) => dose.status === 'Pending') ??
+          medicine.doses[0]
+        : null;
+
+    // Optimistically update the UI so the change is visible immediately.
+    setDashboard((current) =>
+      current
+        ? {
+            ...current,
+            medicines: current.medicines.map((item) =>
+              item.id === medicine.id
+                ? {
+                    ...item,
+                    status,
+                    doses: item.doses?.map((dose) =>
+                      targetDose && dose.doseId === targetDose.doseId
+                        ? { ...dose, status }
+                        : dose
+                    ),
+                  }
+                : item
+            ),
+          }
+        : current
+    );
+
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) throw new Error('Please log in again.');
+
+      const now = new Date();
+
+      if (targetDose) {
+        const doseResponse = await apiFetch(
+          `/api/medicines/${medicine.id}/doses/${targetDose.doseId}/status`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status, date: now.toISOString() }),
+          }
+        );
+        const doseData = await parseJson(doseResponse).catch(() => ({}));
+
+        if (!doseResponse.ok) {
+          throw new Error(doseData.message || 'Unable to update dose status.');
+        }
+      } else {
+        // Older medicines without a schedule keep the legacy behaviour.
+        const medicineResponse = await apiFetch(
+          `/api/medicines/${medicine.id}`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status }),
+          }
+        );
+        const medicineData = await parseJson(medicineResponse).catch(() => ({}));
+
+        if (!medicineResponse.ok) {
+          throw new Error(
+            medicineData.message || 'Unable to update medicine status.'
+          );
+        }
+
+        const historyResponse = await apiFetch(`/api/history`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            medicineId: medicine.id,
+            medicineName: medicine.name,
+            dosage: medicine.dosage,
+            time: medicine.time,
+            status,
+            scheduledDate: now.toISOString(),
+            takenAt: status === 'Taken' ? now.toISOString() : null,
+          }),
+        });
+        const historyData = await parseJson(historyResponse).catch(() => ({}));
+
+        if (!historyResponse.ok) {
+          throw new Error(
+            historyData.message || 'Unable to save medicine history.'
+          );
+        }
+      }
+
+      await loadDashboard(true);
+    } catch (error) {
+      // Roll back to the previous state so nothing is lost on failure.
+      setDashboard(previous);
+      Alert.alert(
+        'Update failed',
+        error instanceof Error
+          ? error.message
+          : 'Unable to update medicine status. Please try again.'
+      );
+    } finally {
+      setUpdatingMedicineId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    (async () => {
+      await fetchNotifications();
+    })();
+  }, [notificationsOpen]);
 
   if (!fontsLoaded) {
 
@@ -279,6 +530,42 @@ export default function HomeScreen() {
     year: 'numeric',
 
   });
+
+
+
+  // Derived dashboard values (kept in sync with optimistic updates).
+
+  const medicines = dashboard?.medicines ?? [];
+
+  const scheduledToday = medicines.length;
+
+  const allDoses = medicines.flatMap((item) => item.doses ?? []);
+
+  const dosesScheduled = allDoses.length;
+
+  const dosesTaken = allDoses.filter((dose) => dose.status === 'Taken').length;
+
+  const dosesMissed = allDoses.filter((dose) => dose.status === 'Missed').length;
+
+  const dosesPending = allDoses.filter((dose) => dose.status === 'Pending').length;
+
+  const upcomingCount = dashboard?.stats.upcomingAppointments ?? 0;
+
+  const weeklyAdherence = dashboard?.weeklyAdherence;
+
+  const adherencePercentage =
+
+    weeklyAdherence && weeklyAdherence.totalDue > 0 ? weeklyAdherence.percentage : 0;
+
+  const nextAppointment = dashboard?.nextAppointment ?? null;
+
+  const displayName = userName.trim() || 'there';
+
+  const avatarLetter = (userName.trim().charAt(0) || 'U').toUpperCase();
+
+  const showInitialState = dashboardLoading && !dashboard;
+
+  const showInitialError = !dashboardLoading && !dashboard && !!dashboardError;
 
 
 
@@ -458,7 +745,7 @@ export default function HomeScreen() {
 
             <Text style={styles.headerWelcome}>
 
-              Welcome back, sawan
+              Welcome back, {displayName}
 
             </Text>
 
@@ -592,7 +879,7 @@ export default function HomeScreen() {
 
 >
 
-  <Text style={styles.avatarText}>S</Text>
+  <Text style={styles.avatarText}>{avatarLetter}</Text>
 
 </Pressable>
 
@@ -650,7 +937,7 @@ export default function HomeScreen() {
 
                 <Text style={styles.pageTitle}>
 
-                  {greeting}, sawan 👋
+                  {greeting}, {displayName} 👋
 
                 </Text>
 
@@ -670,23 +957,57 @@ export default function HomeScreen() {
 
 
 
-              {/* TEMPORARY WEB NOTIFICATION TEST BUTTON */}
-              <Pressable
-                onPress={testMedicineNotification}
-                accessibilityRole="button"
-                style={{
-                  alignSelf: 'flex-start',
-                  backgroundColor: COLORS.primary,
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  borderRadius: 10,
-                  marginBottom: 20,
-                }}
-              >
-                <Text style={{ color: COLORS.white, fontFamily: 'Inter_600SemiBold' }}>
-                  Test Medicine Notification (10 sec)
-                </Text>
-              </Pressable>
+              {/* ================= LOADING / ERROR ================= */}
+
+              {showInitialState && (
+                <View style={styles.dashboardStateCard}>
+                  <ActivityIndicator
+                    animating
+                    color={COLORS.primary}
+                    size="large"
+                  />
+                  <Text style={styles.dashboardStateText}>
+                    Loading your dashboard…
+                  </Text>
+                </View>
+              )}
+
+              {showInitialError && (
+                <View style={styles.dashboardStateCard}>
+                  <Ionicons
+                    name="cloud-offline-outline"
+                    size={36}
+                    color={COLORS.red}
+                  />
+                  <Text style={styles.dashboardStateTitle}>
+                    Couldn’t load your dashboard
+                  </Text>
+                  <Text style={styles.dashboardStateText}>{dashboardError}</Text>
+                  <Pressable
+                    onPress={() => loadDashboard()}
+                    style={styles.dashboardRetry}
+                  >
+                    <Text style={styles.dashboardRetryText}>Try again</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {dashboard && dashboardError && (
+                <View style={styles.dashboardWarning}>
+                  <Ionicons
+                    name="warning-outline"
+                    size={16}
+                    color={COLORS.pending}
+                  />
+                  <Text style={styles.dashboardWarningText}>{dashboardError}</Text>
+                  <Pressable onPress={() => loadDashboard()}>
+                    <Text style={styles.dashboardWarningRetry}>Retry</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              {dashboard && (
+                <>
 
               {/* ================= STAT CARDS ================= */}
 
@@ -700,7 +1021,7 @@ export default function HomeScreen() {
 
                   icon="medical-outline"
 
-                  value="3"
+                  value={String(scheduledToday)}
 
                   label="Medicines today"
 
@@ -716,9 +1037,9 @@ export default function HomeScreen() {
 
                   icon="checkmark-circle-outline"
 
-                  value="18"
+                  value={`${dosesTaken}/${dosesScheduled}`}
 
-                  label="Taken this week"
+                  label="Doses taken today"
 
                   iconColor={COLORS.green}
 
@@ -732,9 +1053,9 @@ export default function HomeScreen() {
 
                   icon="warning-outline"
 
-                  value="3"
+                  value={String(dosesMissed)}
 
-                  label="Missed this week"
+                  label="Missed doses today"
 
                   iconColor={COLORS.red}
 
@@ -746,11 +1067,27 @@ export default function HomeScreen() {
 
                 <StatCard
 
+                  icon="time-outline"
+
+                  value={String(dosesPending)}
+
+                  label="Pending doses today"
+
+                  iconColor={COLORS.pending}
+
+                  iconBackground={COLORS.lightPending}
+
+                />
+
+
+
+                <StatCard
+
                   icon="calendar-outline"
 
-                  value="1"
+                  value={String(upcomingCount)}
 
-                  label="Upcoming visit"
+                  label="Upcoming appointments"
 
                   iconColor={COLORS.primary}
 
@@ -798,7 +1135,7 @@ export default function HomeScreen() {
 
                     <Text style={styles.sectionTitle}>
 
-                      Today's Medicines
+                      Today’s Medicines
 
                     </Text>
 
@@ -824,47 +1161,46 @@ export default function HomeScreen() {
 
 
 
-                  <MedicineRow
-
-                    name="Metformin"
-
-                    dose="500mg"
-
-                    time="8:00 AM · After Breakfast"
-
-                    status="Taken"
-
-                    taken
-
-                  />
-
-
-
-                  <MedicineRow
-
-                    name="Amlodipine"
-
-                    dose="5mg"
-
-                    time="2:00 PM · After Lunch"
-
-                    status="Pending"
-
-                  />
-
-
-
-                  <MedicineRow
-
-                    name="Atorvastatin"
-
-                    dose="10mg"
-
-                    time="9:00 PM · Before Sleep"
-
-                    status="Pending"
-
-                  />
+                  {medicines.length === 0 ? (
+                    <View style={styles.medicineEmpty}>
+                      <Ionicons
+                        name="medkit-outline"
+                        size={34}
+                        color={COLORS.secondary}
+                      />
+                      <Text style={styles.medicineEmptyTitle}>
+                        No medicines scheduled today
+                      </Text>
+                      <Text style={styles.medicineEmptyText}>
+                        Add a medicine to start tracking your doses.
+                      </Text>
+                      <Pressable
+                        onPress={() => router.push('/medicines')}
+                        style={styles.medicineEmptyButton}
+                      >
+                        <Text style={styles.medicineEmptyButtonText}>
+                          Add Medicine
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    medicines.map((medicine) => (
+                      <MedicineRow
+                        key={medicine.id}
+                        name={medicine.name}
+                        dose={medicine.dosage}
+                        time={
+                          medicine.timing
+                            ? `${medicine.time} · ${medicine.timing}`
+                            : medicine.time
+                        }
+                        status={medicine.status}
+                        updating={updatingMedicineId === medicine.id}
+                        onTaken={() => updateMedicineStatus(medicine, 'Taken')}
+                        onMissed={() => updateMedicineStatus(medicine, 'Missed')}
+                      />
+                    ))
+                  )}
 
 
 
@@ -906,7 +1242,7 @@ export default function HomeScreen() {
 
                       <Text style={styles.adherenceTitle}>
 
-                        This Week's Adherence
+                        This Week’s Adherence
 
                       </Text>
 
@@ -916,7 +1252,13 @@ export default function HomeScreen() {
 
                         <Text style={styles.goodProgressText}>
 
-                          Good progress
+                          {!weeklyAdherence || weeklyAdherence.totalDue === 0
+                            ? 'No data yet'
+                            : adherencePercentage >= 80
+                              ? 'Good progress'
+                              : adherencePercentage >= 50
+                                ? 'Keep going'
+                                : 'Needs attention'}
 
                         </Text>
 
@@ -932,7 +1274,7 @@ export default function HomeScreen() {
 
 
 
-                      <AdherenceCircle />
+                      <AdherenceCircle percentage={adherencePercentage} />
 
 
 
@@ -942,7 +1284,7 @@ export default function HomeScreen() {
 
                         <Text style={styles.takenNumber}>
 
-                          18 Taken
+                          {weeklyAdherence?.taken ?? 0} Taken
 
                         </Text>
 
@@ -950,7 +1292,7 @@ export default function HomeScreen() {
 
                         <Text style={styles.missedNumber}>
 
-                          3 Missed
+                          {weeklyAdherence?.missed ?? 0} Missed
 
                         </Text>
 
@@ -958,9 +1300,23 @@ export default function HomeScreen() {
 
                         <Text style={styles.keepText}>
 
-                          Keep following your routine.
+                          {weeklyAdherence && weeklyAdherence.totalDue > 0
+                            ? 'Keep following your routine.'
+                            : 'No doses recorded yet this week.'}
 
                         </Text>
+
+
+
+                        {(!weeklyAdherence || weeklyAdherence.totalDue === 0) && (
+
+                          <Text style={styles.keepText}>
+
+                            Showing limited data.
+
+                          </Text>
+
+                        )}
 
 
 
@@ -984,103 +1340,153 @@ export default function HomeScreen() {
 
                   <View style={styles.appointmentCard}>
 
+                    <View style={styles.sectionHeader}>
 
+                      <Text style={styles.sectionTitle}>
 
-                    <Text style={styles.sectionTitle}>
+                        Upcoming Appointment
 
-                      Upcoming Appointment
+                      </Text>
 
-                    </Text>
+                      <Pressable onPress={() => router.push('/appointments')}>
 
+                        <Text style={styles.viewAll}>View All</Text>
 
-
-                    <View style={styles.appointmentBody}>
-
-
-
-                      <View style={styles.calendarBox}>
-
-                        <Ionicons
-
-                          name="calendar-outline"
-
-                          size={25}
-
-                          color={COLORS.primary}
-
-                        />
-
-                      </View>
-
-
-
-                      <View style={styles.appointmentDetails}>
-
-
-
-                        <Text style={styles.doctorName}>
-
-                          Dr. Rajesh Mehta
-
-                        </Text>
-
-
-
-                        <Text style={styles.doctorDetails}>
-
-                          Cardiologist · City Care Hospital
-
-                        </Text>
-
-
-
-                        <Text style={styles.appointmentDate}>
-
-                          Friday, 12 September · 11:30 AM
-
-                        </Text>
-
-
-
-                        <Text style={styles.opd}>
-
-                          OPD-3
-
-                        </Text>
-
-
-
-                      </View>
-
-
-
-                      <View style={styles.upcomingBadge}>
-
-                        <Ionicons
-
-                          name="time-outline"
-
-                          size={13}
-
-                          color={COLORS.primary}
-
-                        />
-
-
-
-                        <Text style={styles.upcomingText}>
-
-                          Upcoming
-
-                        </Text>
-
-                      </View>
-
-
+                      </Pressable>
 
                     </View>
 
 
+
+                    {nextAppointment ? (
+
+                      <View style={styles.appointmentBody}>
+
+
+
+                        <View style={styles.calendarBox}>
+
+                          <Ionicons
+
+                            name="calendar-outline"
+
+                            size={25}
+
+                            color={COLORS.primary}
+
+                          />
+
+                        </View>
+
+
+
+                        <View style={styles.appointmentDetails}>
+
+
+
+                          <Text style={styles.doctorName}>
+
+                            {nextAppointment.doctor}
+
+                          </Text>
+
+
+
+                          <Text style={styles.doctorDetails}>
+
+                            {nextAppointment.specialty} · {nextAppointment.hospital}
+
+                          </Text>
+
+
+
+                          <Text style={styles.appointmentDate}>
+
+                            {nextAppointment.date} · {nextAppointment.time}
+
+                          </Text>
+
+
+
+                          {!!nextAppointment.reason && (
+
+                            <Text style={styles.opd}>
+
+                              Reason: {nextAppointment.reason}
+
+                            </Text>
+
+                          )}
+
+                        </View>
+
+
+
+                        <View style={styles.upcomingBadge}>
+
+                          <Ionicons
+
+                            name="time-outline"
+
+                            size={13}
+
+                            color={COLORS.primary}
+
+                          />
+
+
+
+                          <Text style={styles.upcomingText}>
+
+                            {nextAppointment.status}
+
+                          </Text>
+
+                        </View>
+
+
+
+                      </View>
+
+                    ) : (
+
+                      <View style={styles.appointmentEmpty}>
+
+                        <Ionicons
+
+                          name="calendar-clear-outline"
+
+                          size={30}
+
+                          color={COLORS.secondary}
+
+                        />
+
+                        <Text style={styles.appointmentEmptyText}>
+
+                          No upcoming appointments
+
+                        </Text>
+
+                        <Pressable
+
+                          onPress={() => router.push('/appointments')}
+
+                          style={styles.appointmentEmptyButton}
+
+                        >
+
+                          <Text style={styles.appointmentEmptyButtonText}>
+
+                            Book Appointment
+
+                          </Text>
+
+                        </Pressable>
+
+                      </View>
+
+                    )}
 
                   </View>
 
@@ -1094,6 +1500,10 @@ export default function HomeScreen() {
 
 
 
+
+
+              </>
+              )}
 
 
               {/* ================= QUICK ACTIONS ================= */}
@@ -1372,7 +1782,11 @@ function MedicineRow({
 
   status,
 
-  taken = false,
+  updating = false,
+
+  onTaken,
+
+  onMissed,
 
 }: {
 
@@ -1382,11 +1796,39 @@ function MedicineRow({
 
   time: string;
 
-  status: string;
+  status: DashboardMedicineStatus;
 
-  taken?: boolean;
+  updating?: boolean;
+
+  onTaken?: () => void;
+
+  onMissed?: () => void;
 
 }) {
+
+  const isTaken = status === 'Taken';
+
+  const isMissed = status === 'Missed';
+
+  const statusColor = isTaken
+
+    ? COLORS.green
+
+    : isMissed
+
+      ? COLORS.red
+
+      : COLORS.pending;
+
+  const statusBackground = isTaken
+
+    ? COLORS.lightGreen
+
+    : isMissed
+
+      ? COLORS.lightRed
+
+      : COLORS.lightPending;
 
   return (
 
@@ -1436,6 +1878,96 @@ function MedicineRow({
 
 
 
+        {status === 'Pending' && (onTaken || onMissed) && (
+
+          <View style={styles.medicineActions}>
+
+            <Pressable
+
+              onPress={onTaken}
+
+              disabled={updating}
+
+              style={[
+
+                styles.medicineActionButton,
+
+                styles.takenActionButton,
+
+                updating && styles.medicineActionDisabled,
+
+              ]}
+
+            >
+
+              <Ionicons
+
+                name="checkmark"
+
+                size={14}
+
+                color={COLORS.green}
+
+              />
+
+              <Text
+
+                style={[styles.medicineActionText, { color: COLORS.green }]}
+
+              >
+
+                Taken
+
+              </Text>
+
+            </Pressable>
+
+
+
+            <Pressable
+
+              onPress={onMissed}
+
+              disabled={updating}
+
+              style={[
+
+                styles.medicineActionButton,
+
+                styles.missedActionButton,
+
+                updating && styles.medicineActionDisabled,
+
+              ]}
+
+            >
+
+              <Ionicons
+
+                name="close"
+
+                size={14}
+
+                color={COLORS.red}
+
+              />
+
+              <Text
+
+                style={[styles.medicineActionText, { color: COLORS.red }]}
+
+              >
+
+                Missed
+
+              </Text>
+
+            </Pressable>
+
+          </View>
+
+        )}
+
       </View>
 
 
@@ -1446,11 +1978,7 @@ function MedicineRow({
 
           styles.medicineStatus,
 
-          taken
-
-            ? styles.takenStatus
-
-            : styles.pendingStatus,
+          { backgroundColor: statusBackground },
 
         ]}
 
@@ -1460,11 +1988,11 @@ function MedicineRow({
 
         <Ionicons
 
-          name={taken ? 'checkmark' : 'time-outline'}
+          name={isTaken ? 'checkmark' : isMissed ? 'close' : 'time-outline'}
 
           size={13}
 
-          color={taken ? COLORS.green : COLORS.pending}
+          color={statusColor}
 
         />
 
@@ -1478,11 +2006,7 @@ function MedicineRow({
 
             {
 
-              color: taken
-
-                ? COLORS.green
-
-                : COLORS.pending,
+              color: statusColor,
 
             },
 
@@ -1518,7 +2042,7 @@ function MedicineRow({
 
 
 
-function AdherenceCircle() {
+function AdherenceCircle({ percentage }: { percentage: number }) {
 
   const size = 125;
 
@@ -1530,7 +2054,9 @@ function AdherenceCircle() {
 
 
 
-  const progress = 0.85;
+  const safePercentage = Math.max(0, Math.min(100, percentage));
+
+  const progress = safePercentage / 100;
 
   const dashOffset =
 
@@ -1606,7 +2132,7 @@ function AdherenceCircle() {
 
         <Text style={styles.percentText}>
 
-          85%
+          {safePercentage}%
 
         </Text>
 
@@ -3174,6 +3700,178 @@ notificationDropdown: {
 
     fontFamily: 'Inter_600SemiBold',
 
+  },
+
+
+  /* DASHBOARD STATES */
+
+  dashboardStateCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: 34,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+
+  dashboardStateTitle: {
+    color: COLORS.text,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 18,
+    marginTop: 12,
+    textAlign: 'center',
+  },
+
+  dashboardStateText: {
+    color: COLORS.secondary,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  dashboardRetry: {
+    marginTop: 16,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+
+  dashboardRetryText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+  },
+
+  dashboardWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.lightPending,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 16,
+  },
+
+  dashboardWarningText: {
+    flex: 1,
+    color: COLORS.text,
+    fontFamily: 'Inter_500Medium',
+    fontSize: 12,
+  },
+
+  dashboardWarningRetry: {
+    color: COLORS.primary,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+  },
+
+
+  /* MEDICINE ACTIONS */
+
+  medicineActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+
+  medicineActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+
+  takenActionButton: {
+    borderColor: COLORS.green,
+    backgroundColor: COLORS.lightGreen,
+  },
+
+  missedActionButton: {
+    borderColor: COLORS.red,
+    backgroundColor: COLORS.lightRed,
+  },
+
+  medicineActionText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 12,
+  },
+
+  medicineActionDisabled: {
+    opacity: 0.5,
+  },
+
+  medicineEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+  },
+
+  medicineEmptyTitle: {
+    color: COLORS.text,
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 16,
+    marginTop: 10,
+  },
+
+  medicineEmptyText: {
+    color: COLORS.secondary,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
+  medicineEmptyButton: {
+    marginTop: 14,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+
+  medicineEmptyButtonText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
+  },
+
+  appointmentEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 22,
+    paddingHorizontal: 16,
+  },
+
+  appointmentEmptyText: {
+    color: COLORS.secondary,
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    marginTop: 8,
+  },
+
+  appointmentEmptyButton: {
+    marginTop: 12,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+  },
+
+  appointmentEmptyButtonText: {
+    color: COLORS.white,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 13,
   },
 
 });
