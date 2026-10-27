@@ -1,13 +1,13 @@
-import { Image ,
+import {
+  Image,
   Animated,
   Easing,
-  Platform,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
 } from 'react-native';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -19,27 +19,29 @@ export default function WelcomeScreen() {
   const params = useLocalSearchParams<{ name?: string }>();
   const userName = params.name || 'User';
 
-  const fadeAnim = useRef(new Animated.Value(0));
-  const scaleAnim = useRef(new Animated.Value(0.92));
-  const slideAnim = useRef(new Animated.Value(25));
+  // Animated values must live in state (not refs) so they can be read
+  // directly during render without tripping the refs lint rule.
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [scaleAnim] = useState(() => new Animated.Value(0.92));
+  const [slideAnim] = useState(() => new Animated.Value(25));
 
   useEffect(() => {
 Animated.parallel([
-      Animated.timing(fadeAnim.current, {
+      Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 700,
         easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       }),
 
-      Animated.spring(scaleAnim.current, {
+      Animated.spring(scaleAnim, {
         toValue: 1,
         friction: 7,
         tension: 45,
         useNativeDriver: true,
       }),
 
-      Animated.timing(slideAnim.current, {
+      Animated.timing(slideAnim, {
         toValue: 0,
         duration: 700,
         easing: Easing.out(Easing.ease),
@@ -52,7 +54,7 @@ Animated.parallel([
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [fadeAnim, scaleAnim, slideAnim]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -67,10 +69,10 @@ Animated.parallel([
             styles.content,
             isLargeScreen && styles.webContent,
             {
-              opacity: fadeAnim.current,
+              opacity: fadeAnim,
               transform: [
-                { scale: scaleAnim.current },
-                { translateY: slideAnim.current },
+                { scale: scaleAnim },
+                { translateY: slideAnim },
               ],
             },
           ]}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState , useCallback } from 'react';
+import React, { useState , useCallback } from 'react';
 import { useFocusEffect , useRouter } from 'expo-router';
 import { apiFetch, parseJson } from '../services/api';
 

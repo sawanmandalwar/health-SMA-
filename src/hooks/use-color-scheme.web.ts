@@ -8,8 +8,11 @@ export function useColorScheme() {
   const [hasHydrated, setHasHydrated] = useState(false);
 
   useEffect(() => {
-     
-    setHasHydrated(true);
+    // Defer past the synchronous effect phase so the first client render
+    // matches the server render (static rendering support for web).
+    const timer = setTimeout(() => setHasHydrated(true), 0);
+
+    return () => clearTimeout(timer);
   }, []);
 
   const colorScheme = useRNColorScheme();

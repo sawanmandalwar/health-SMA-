@@ -488,6 +488,9 @@ useFocusEffect(
     return () => {
       // Nothing needed here
     };
+    // loadProfile is a plain function recreated every render; including it
+    // would re-run this focus effect on every render and reload in a loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 );
 

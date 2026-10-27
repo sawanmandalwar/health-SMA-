@@ -1,0 +1,10 @@
+◇ injected env (3) from .env
+Auth routes: [
+  {
+    path: '/register',
+    methods: [Object: null prototype] { post: true }
+  },
+  { path: '/login', methods: [Object: null prototype] { post: true } }
+]
+Server running on http://localhost:5000
+MongoDB Connection Error: bad auth : authentication failed
