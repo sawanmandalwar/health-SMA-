@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Alert,
-  Animated,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,9 +13,17 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import { fetch as expoFetch } from 'expo/fetch';
+import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
-import { apiFetch, parseJson } from '../services/api';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { apiFetch, parseJson, apiUrl } from '../services/api';
+import { deactivatePushTokenWithBackend } from '../services/notificationService';
+import { resetTimezoneSyncCache } from '../services/timezoneService';
+import AppHeader from '../components/AppHeader';
 const COLORS = {
   primaryBlue: '#1E76B6',
   darkBlue: '#155A8C',
@@ -40,6 +49,7 @@ interface ProfileData {
   bloodGroup: string;
   emergencyName: string;
   emergencyPhone: string;
+  photoUrl: string;
 }
 
 const defaultProfile: ProfileData = {
@@ -51,6 +61,7 @@ const defaultProfile: ProfileData = {
   bloodGroup: '',
   emergencyName: '',
   emergencyPhone: '',
+  photoUrl: '',
 };
 
 export default function ProfileScreen() {
@@ -72,11 +83,22 @@ export default function ProfileScreen() {
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
 
+  const [photoUri, setPhotoUri] = useState('');
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Custom action sheet for Take Photo / Gallery / Remove.
+  const [photoActionSheetVisible, setPhotoActionSheetVisible] =
+    useState(false);
+
   const [passwordModal, setPasswordModal] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Full-screen preview of the profile photo.
+  const [photoViewerVisible, setPhotoViewerVisible] =
+    useState(false);
 
   const loadProfile = async () => {
     try {
@@ -114,15 +136,39 @@ export default function ProfileScreen() {
         bloodGroup: localProfile.bloodGroup || '',
         emergencyName: localProfile.emergencyName || '',
         emergencyPhone: localProfile.emergencyPhone || '',
+        photoUrl: data.user.photoUrl
+          ? apiUrl(String(data.user.photoUrl))
+          : '',
       };
 
       setProfile(updatedProfile);
       setFormValues(updatedProfile);
+      setPhotoUri(updatedProfile.photoUrl);
 
       await AsyncStorage.setItem(
         PROFILE_KEY,
         JSON.stringify(updatedProfile)
       );
+
+      // Keep the shared 'user' cache in sync so the header avatars on
+      // other screens show the photo too.
+      const rawUser = await AsyncStorage.getItem('user');
+
+      if (rawUser) {
+        try {
+          const cachedUser = JSON.parse(rawUser);
+
+          await AsyncStorage.setItem(
+            'user',
+            JSON.stringify({
+              ...cachedUser,
+              photoUrl: data.user.photoUrl || '',
+            })
+          );
+        } catch {
+          // Ignore cache parse errors; next login refreshes it.
+        }
+      }
     } catch (error) {
       console.log('Error loading profile:', error);
       Alert.alert(
@@ -141,6 +187,298 @@ export default function ProfileScreen() {
     setBloodGroup(data.bloodGroup);
     setEmergencyName(data.emergencyName);
     setEmergencyPhone(data.emergencyPhone);
+  };
+
+  // ==================================================
+  // PROFILE PHOTO
+  // ==================================================
+
+  const pickOptions = {
+    mediaTypes: ['images'] as ['images'],
+    allowsEditing: true,
+    aspect: [1, 1] as [number, number],
+    quality: 0.7,
+  };
+
+    const ensureMediaLibraryPermission = async () => {
+      const permission =
+        await ImagePicker.getMediaLibraryPermissionsAsync();
+
+      let status = permission.status;
+
+      if (permission.canAskAgain && !permission.granted) {
+        const requested =
+          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        status = requested.status;
+      }
+
+      if (!permission.granted && status !== 'granted') {
+        Alert.alert(
+          'Permission Needed',
+          'Allow photo library access to choose a profile photo.'
+        );
+        return false;
+      }
+
+      return true;
+    };
+
+    const ensureCameraPermission = async () => {
+      const permission =
+        await ImagePicker.getCameraPermissionsAsync();
+
+      let status = permission.status;
+
+      if (permission.canAskAgain && !permission.granted) {
+        const requested =
+          await ImagePicker.requestCameraPermissionsAsync();
+        status = requested.status;
+      }
+
+      if (!permission.granted && status !== 'granted') {
+        Alert.alert(
+          'Permission Needed',
+          'Allow camera access to take a profile photo.'
+        );
+        return false;
+      }
+
+      return true;
+    };
+
+    const uploadPhotoAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+      try {
+        // Pickers return jpg; keep png if the system returns one.
+        const extension =
+          asset.mimeType === 'image/png'
+            ? 'png'
+            : asset.mimeType === 'image/webp'
+            ? 'webp'
+            : 'jpg';
+
+        const token = await AsyncStorage.getItem('authToken');
+
+        if (!token) {
+          Alert.alert('Login Required', 'Please login again.');
+          router.replace('/');
+          return;
+        }
+
+        setUploadingPhoto(true);
+
+        const formData = new FormData();
+        let response: Response;
+
+        if (Platform.OS === 'web') {
+          // On web the picker hands out a blob: URL; convert it to a Blob
+          // because react-native-web cannot read file:// URIs.
+          const blobResponse = await fetch(asset.uri);
+          const fileBlob = await blobResponse.blob();
+
+          formData.append(
+            'photo',
+            fileBlob,
+            `profile.${extension}`
+          );
+
+          // Browsers can use the global fetch directly for blob: URLs.
+          response = await fetch(apiUrl('/api/profile/photo'), {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: formData,
+          });
+        } else {
+          // Native (SDK 57): global fetch is expo/fetch, which rejects
+          // { uri, name, type } form parts with "Unsupported FormDataPart
+          // implementation". The supported shape is a Blob/File object.
+          const photoFile = new File(asset.uri);
+
+          formData.append('photo', photoFile as unknown as Blob);
+
+          // Uploads can be slower than normal API calls, so give them a
+          // dedicated 60s deadline.
+          const uploadController = new AbortController();
+          const uploadTimeout = setTimeout(() => {
+            uploadController.abort();
+          }, 60000);
+
+          try {
+            response = await expoFetch(apiUrl('/api/profile/photo'), {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+              body: formData,
+              signal: uploadController.signal,
+            } as RequestInit);
+          } finally {
+            clearTimeout(uploadTimeout);
+          }
+        }
+
+        const data = await parseJson(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || 'Unable to update profile photo'
+          );
+        }
+
+        const photoUrl = data.user?.photoUrl
+          ? apiUrl(String(data.user.photoUrl))
+          : '';
+
+        setPhotoUri(photoUrl);
+        setProfile((current) => ({
+          ...current,
+          photoUrl,
+        }));
+
+        const rawUser = await AsyncStorage.getItem('user');
+
+        if (rawUser) {
+          try {
+            const cachedUser = JSON.parse(rawUser);
+
+            await AsyncStorage.setItem(
+              'user',
+              JSON.stringify({
+                ...cachedUser,
+                photoUrl: data.user.photoUrl || '',
+              })
+            );
+          } catch {
+            // Ignore cache parse errors.
+          }
+        }
+
+        Alert.alert('Profile Photo', 'Photo updated successfully.');
+      } catch (error) {
+        console.log('Profile photo upload error:', error);
+        Alert.alert(
+          'Profile Photo',
+          error instanceof Error
+            ? error.message
+            : 'Unable to update profile photo.'
+        );
+      } finally {
+        setUploadingPhoto(false);
+      }
+    };
+
+    const chooseFromGallery = async () => {
+      setPhotoActionSheetVisible(false);
+
+      if (!(await ensureMediaLibraryPermission())) {
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync(
+        pickOptions
+      );
+
+      if (result.canceled || result.assets.length === 0) {
+        return;
+      }
+
+      // Show the cropped photo instantly; the upload replaces the local
+      // URI with the server URL once it completes.
+      setPhotoUri(result.assets[0].uri);
+
+      await uploadPhotoAsset(result.assets[0]);
+    };
+
+    const takeWithCamera = async () => {
+      setPhotoActionSheetVisible(false);
+
+      if (!(await ensureCameraPermission())) {
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync(
+        pickOptions
+      );
+
+      if (result.canceled || result.assets.length === 0) {
+        return;
+      }
+
+      setPhotoUri(result.assets[0].uri);
+
+      await uploadPhotoAsset(result.assets[0]);
+    };
+
+    const removePhoto = async () => {
+      setPhotoActionSheetVisible(false);
+
+      try {
+        const token = await AsyncStorage.getItem('authToken');
+
+        if (!token) {
+          Alert.alert('Login Required', 'Please login again.');
+          router.replace('/');
+          return;
+        }
+
+        const response = await apiFetch(`/api/profile/photo`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const data = await parseJson(response);
+
+        if (!response.ok) {
+          throw new Error(
+            data.message || 'Unable to remove profile photo'
+          );
+        }
+
+        setPhotoUri('');
+        setProfile((current) => ({
+          ...current,
+          photoUrl: '',
+        }));
+
+        const rawUser = await AsyncStorage.getItem('user');
+
+        if (rawUser) {
+          try {
+            const cachedUser = JSON.parse(rawUser);
+
+            await AsyncStorage.setItem(
+              'user',
+              JSON.stringify({
+                ...cachedUser,
+                photoUrl: '',
+              })
+            );
+          } catch {
+            // Ignore cache parse errors.
+          }
+        }
+
+        Alert.alert('Profile Photo', 'Photo removed.');
+      } catch (error) {
+        console.log('Profile photo removal error:', error);
+        Alert.alert(
+          'Profile Photo',
+          error instanceof Error
+            ? error.message
+            : 'Unable to remove profile photo.'
+        );
+      }
+    };
+
+  const openPhotoActionSheet = () => {
+    if (uploadingPhoto) {
+      return;
+    }
+
+    setPhotoActionSheetVisible(true);
   };
 
 useFocusEffect(
@@ -163,6 +501,7 @@ useFocusEffect(
       bloodGroup: bloodGroup.trim(),
       emergencyName: emergencyName.trim(),
       emergencyPhone: emergencyPhone.trim(),
+      photoUrl: photoUri,
     };
 
     if (!updatedProfile.name) {
@@ -202,6 +541,9 @@ useFocusEffect(
         name: data.user.name || updatedProfile.name,
         email: data.user.email || updatedProfile.email,
         phone: data.user.phone || updatedProfile.phone,
+        photoUrl: data.user.photoUrl
+          ? apiUrl(String(data.user.photoUrl))
+          : photoUri,
       };
 
       await AsyncStorage.setItem(
@@ -278,6 +620,14 @@ useFocusEffect(
     console.log('LOGOUT BUTTON PRESSED');
 
     try {
+      const token = await AsyncStorage.getItem('authToken');
+
+      if (token) {
+        deactivatePushTokenWithBackend(token).catch(() => undefined);
+      }
+
+      resetTimezoneSyncCache();
+
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('user');
       await AsyncStorage.removeItem(PROFILE_KEY);
@@ -297,6 +647,9 @@ useFocusEffect(
 
   return (
     <View style={styles.screen}>
+      <SafeAreaView edges={['top']} style={styles.safeTop}>
+        <AppHeader />
+      </SafeAreaView>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
@@ -356,10 +709,46 @@ useFocusEffect(
             isMobile && styles.profileCardMobile,
           ]}
         >
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {firstLetter}
-            </Text>
+          <View style={styles.avatarWrapper}>
+            <Pressable
+              onPress={() =>
+                photoUri
+                  ? setPhotoViewerVisible(true)
+                  : openPhotoActionSheet()
+              }
+              style={({ pressed }) => [
+                styles.avatar,
+                pressed && styles.pressed,
+              ]}
+            >
+              {photoUri ? (
+                <Image
+                  source={{ uri: photoUri }}
+                  style={styles.avatarImage}
+                  contentFit="cover"
+                  transition={150}
+                />
+              ) : (
+                <Text style={styles.avatarText}>
+                  {firstLetter}
+                </Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={openPhotoActionSheet}
+              disabled={uploadingPhoto}
+              style={({ pressed }) => [
+                styles.avatarCameraBadge,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name={uploadingPhoto ? 'hourglass-outline' : 'camera'}
+                size={15}
+                color={COLORS.white}
+              />
+            </Pressable>
           </View>
 
           <View style={styles.profileMain}>
@@ -561,6 +950,13 @@ useFocusEffect(
 
         <View style={styles.card}>
           <SettingRow
+            icon="people-outline"
+            title="Caregiver Settings"
+            subtitle="Receive alerts when you miss consecutive medicine doses."
+            onPress={() => router.push('/caregiver')}
+          />
+
+          <SettingRow
             icon="notifications-outline"
             title="Notifications"
             subtitle="Medicine and appointment reminders"
@@ -692,30 +1088,178 @@ useFocusEffect(
       {/* BOTTOM NAVIGATION */}
       <View style={styles.bottomNav}>
         <BottomTab
-          icon="home"
+          icon="home-outline"
           label="Home"
           onPress={() => router.push('/home')}
         />
 
         <BottomTab
-          icon="medical"
+          icon="medical-outline"
           label="Medicines"
           onPress={() => router.push('/medicines')}
         />
 
         <BottomTab
-          icon="calendar"
+          icon="calendar-outline"
           label="Appointments"
           onPress={() => router.push('/appointments')}
         />
 
         <BottomTab
-          icon="person"
+          icon="person-outline"
           label="Profile"
           active
           onPress={() => router.push('/profile')}
         />
       </View>
+
+      {/* PHOTO ACTION SHEET */}
+      <Modal
+        visible={photoActionSheetVisible}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setPhotoActionSheetVisible(false)}
+      >
+        <View style={styles.actionSheetBackdrop}>
+          {/* Tap the dimmed area to dismiss. */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setPhotoActionSheetVisible(false)}
+          />
+
+          <Pressable
+            onPress={() => setPhotoActionSheetVisible(false)}
+          >
+            <View style={styles.actionSheetContainer}>
+              <Text style={styles.actionSheetTitle}>
+                Profile Photo
+              </Text>
+
+              {photoUri && (
+                <Pressable
+                  onPress={removePhoto}
+                  style={({ pressed }) => [
+                    styles.actionSheetOption,
+                    pressed && styles.actionSheetOptionPressed,
+                  ]}
+                >
+                  <Ionicons
+                    name="trash-outline"
+                    size={20}
+                    color={COLORS.dangerRed}
+                  />
+
+                  <Text
+                    style={[
+                      styles.actionSheetOptionText,
+                      styles.actionSheetOptionDestructive,
+                    ]}
+                  >
+                    Remove Photo
+                  </Text>
+                </Pressable>
+              )}
+
+              <Pressable
+                onPress={takeWithCamera}
+                style={({ pressed }) => [
+                  styles.actionSheetOption,
+                  pressed && styles.actionSheetOptionPressed,
+                ]}
+              >
+                <Ionicons
+                  name="camera-outline"
+                  size={20}
+                  color={COLORS.primaryBlue}
+                />
+
+                <Text style={styles.actionSheetOptionText}>
+                  Take Photo
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={chooseFromGallery}
+                style={({ pressed }) => [
+                  styles.actionSheetOption,
+                  pressed && styles.actionSheetOptionPressed,
+                ]}
+              >
+                <Ionicons
+                  name="images-outline"
+                  size={20}
+                  color={COLORS.primaryBlue}
+                />
+
+                <Text style={styles.actionSheetOptionText}>
+                  Choose from Gallery
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setPhotoActionSheetVisible(false)}
+                style={({ pressed }) => [
+                  styles.actionSheetOption,
+                  styles.actionSheetCancel,
+                  pressed && styles.actionSheetOptionPressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.actionSheetOptionText,
+                    styles.actionSheetOptionDestructive,
+                  ]}
+                >
+                  Cancel
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </View>
+      </Modal>
+
+      {/* FULL-SCREEN PHOTO VIEWER */}
+      <Modal
+        visible={photoViewerVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPhotoViewerVisible(false)}
+      >
+        <View style={styles.photoViewerBackdrop}>
+          {/* Touching the dark area around the photo closes the viewer. */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setPhotoViewerVisible(false)}
+          />
+
+          {/* The photo itself does not close the viewer. */}
+          <Pressable
+            style={styles.photoViewerImageWrapper}
+          >
+            <Image
+              source={{ uri: photoUri || undefined }}
+              style={styles.photoViewerImage}
+              contentFit="contain"
+            />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setPhotoViewerVisible(false)}
+            style={({ pressed }) => [
+              styles.photoViewerCloseButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="close"
+              size={22}
+              color={COLORS.white}
+            />
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -903,52 +1447,32 @@ function BottomTab({
   active?: boolean;
   onPress: () => void;
 }) {
-  const scale = useRef(new Animated.Value(1));
-
   return (
     <Pressable
-      onPressIn={() =>
-        Animated.spring(scale.current, {
-          toValue: 1.12,
-          useNativeDriver: true,
-        }).start()
-      }
-      onPressOut={() =>
-        Animated.spring(scale.current, {
-          toValue: 1,
-          useNativeDriver: true,
-        }).start()
-      }
       onPress={onPress}
-      style={styles.bottomTab}
+      style={[
+        styles.bottomTab,
+        active && styles.bottomTabActive,
+      ]}
     >
-      <Animated.View
+      <Ionicons
+        name={icon}
+        size={23}
+        color={
+          active
+            ? COLORS.primaryBlue
+            : COLORS.secondary
+        }
+      />
+
+      <Text
         style={[
-          styles.bottomTabInner,
-          {
-            transform: [{ scale: scale.current }],
-          },
+          styles.bottomText,
+          active && styles.bottomTextActive,
         ]}
       >
-        <Ionicons
-          name={icon}
-          size={22}
-          color={
-            active
-              ? COLORS.primaryBlue
-              : COLORS.secondary
-          }
-        />
-
-        <Text
-          style={[
-            styles.bottomText,
-            active && styles.bottomTextActive,
-          ]}
-        >
-          {label}
-        </Text>
-      </Animated.View>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -961,14 +1485,18 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 
+  safeTop: {
+    backgroundColor: COLORS.background,
+  },
+
   scrollContent: {
     padding: 28,
-    paddingBottom: 120,
+    paddingBottom: 28,
   },
 
   mobileScrollContent: {
     padding: 16,
-    paddingBottom: 110,
+    paddingBottom: 16,
   },
 
   pageHeader: {
@@ -1056,7 +1584,115 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryBlue,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+
+  avatarWrapper: {
     marginRight: 18,
+  },
+
+  avatarImage: {
+    width: 82,
+    height: 82,
+  },
+
+  photoViewerBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+    backgroundColor: 'rgba(0, 0, 0, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  photoViewerImage: {
+    width: '92%',
+    height: '76%',
+  },
+
+  photoViewerImageWrapper: {
+    width: '92%',
+    height: '76%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  actionSheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'flex-end',
+  },
+
+  actionSheetContainer: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 26,
+  },
+
+  actionSheetTitle: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    color: COLORS.secondary,
+    marginBottom: 8,
+  },
+
+  actionSheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 15,
+  },
+
+  actionSheetOptionPressed: {
+    backgroundColor: COLORS.background,
+  },
+
+  actionSheetOptionText: {
+    fontFamily: 'Inter_500Medium',
+    fontSize: 16,
+    color: COLORS.text,
+    marginLeft: 14,
+  },
+
+  actionSheetOptionDestructive: {
+    color: COLORS.dangerRed,
+  },
+
+  actionSheetCancel: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    marginTop: 8,
+  },
+
+  photoViewerCloseButton: {
+    position: 'absolute',
+    bottom: 40,
+    right: 24,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: COLORS.primaryBlue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  avatarCameraBadge: {
+    position: 'absolute',
+    right: -4,
+    bottom: -4,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.primaryBlue,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   avatarText: {
@@ -1329,41 +1965,39 @@ const styles = StyleSheet.create({
   },
 
   bottomNav: {
-    position: 'absolute',
-    left: 15,
-    right: 15,
-    bottom: 15,
-    height: 67,
+    height: 72,
     backgroundColor: COLORS.white,
-    borderRadius: 18,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#DDE8EB',
+    paddingHorizontal: 20,
   },
 
   bottomTab: {
+    height: 48,
     flex: 1,
-    height: '100%',
+    maxWidth: 96,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+    gap: 4,
+    paddingVertical: 5,
   },
 
-  bottomTabInner: {
-    alignItems: 'center',
+  bottomTabActive: {
+    backgroundColor: '#E5F2F9',
   },
 
   bottomText: {
     fontFamily: 'Inter_500Medium',
-    fontSize: 10,
+    fontSize: 11,
     color: COLORS.secondary,
-    marginTop: 3,
   },
 
   bottomTextActive: {
     color: COLORS.primaryBlue,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_700Bold',
   },
 });

@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
 
 import {
-  View,
-  Text,
-  StyleSheet,
+  Alert,
+  Image,
+  PixelRatio,
   Pressable,
   ScrollView,
-  Image,
+  StyleSheet,
+  Text,
+  View,
   useWindowDimensions,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
 
 import * as ImagePicker from 'expo-image-picker';
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   Poppins_400Regular,
@@ -33,7 +33,52 @@ import {
 
 import { useFonts } from 'expo-font';
 
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { useRouter } from 'expo-router';
+
+import {
+  extractPrescriptionText,
+  OcrError,
+  PrescriptionTextResult,
+} from '@/services/ocrService';
+
+import {
+  MedicineReviewCard,
+  ReviewMedicine,
+} from '@/components/medicine-review-card';
+
+import { ImageCropEditor } from '@/components/image-crop-editor';
+
+import AppHeader from '../components/AppHeader';
+
+import {
+  EditableImage,
+  FULL_IMAGE_EDIT,
+  ImageEditState,
+  isFullImageCrop,
+  isImageEditError,
+  rotateEditClockwise,
+  rotateImage,
+} from '@/services/imageProcessingService';
+
+import {
+  ParsedPrescriptionMedicine,
+  parsePrescriptionMedicines,
+} from '@/services/prescriptionParser';
+
+import {
+  createMedicine,
+  fetchMedicines,
+  findDuplicateMedicine,
+  MedicineRecord,
+} from '@/services/medicineService';
+
+import {
+  isValidMedicineTime,
+  requestNotificationPermission,
+  syncMedicineReminders,
+} from '@/services/notificationService';
 
 
 // ====================================================
@@ -66,11 +111,122 @@ const COLORS = {
 
 
 // ====================================================
-// STORAGE KEY
+// BOTTOM TAB
 // ====================================================
 
-const MEDICINES_STORAGE_KEY =
-  '@health_saathi_medicines';
+type BottomTabProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  active?: boolean;
+  onPress: () => void;
+};
+
+function BottomTab({
+  icon,
+  label,
+  active = false,
+  onPress,
+}: BottomTabProps) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[styles.bottomTab, active && styles.bottomTabActive]}
+    >
+      <Ionicons
+        name={icon}
+        size={22}
+        color={active ? COLORS.primaryBlue : COLORS.secondaryText}
+      />
+      <Text
+        style={[styles.bottomTabText, active && styles.bottomTabTextActive]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+
+// ====================================================
+// IMAGE ACTION
+// ====================================================
+
+type ScanActionButtonProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  primary?: boolean;
+  wide?: boolean;
+};
+
+function ScanActionButton({
+  icon,
+  label,
+  onPress,
+  disabled = false,
+  primary = false,
+  wide = false,
+}: ScanActionButtonProps) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.scanActionButton,
+        wide && styles.scanActionButtonWide,
+        primary && styles.scanActionButtonPrimary,
+        pressed && styles.scanActionButtonPressed,
+        disabled && styles.scanActionButtonDisabled,
+      ]}
+    >
+      <Ionicons
+        name={icon}
+        size={19}
+        color={primary ? COLORS.white : COLORS.primaryBlue}
+      />
+      <Text
+        style={[
+          styles.scanActionText,
+          primary && styles.scanActionTextPrimary,
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+
+function resolvePickedImage(
+  asset: ImagePicker.ImagePickerAsset
+): Promise<EditableImage> {
+  if (asset.width > 0 && asset.height > 0) {
+    return Promise.resolve({
+      uri: asset.uri,
+      width: asset.width,
+      height: asset.height,
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    Image.getSize(
+      asset.uri,
+      (width, height) => {
+        resolve({
+          uri: asset.uri,
+          width,
+          height,
+        });
+      },
+      () => {
+        reject(new Error('Image dimensions could not be read.'));
+      }
+    );
+  });
+}
 
 
 // ====================================================
@@ -120,6 +276,24 @@ export default function ScanScreen() {
   const [imageUri, setImageUri] =
     useState<string | null>(null);
 
+  const [imageDimensions, setImageDimensions] =
+    useState({ width: 0, height: 0 });
+
+  const [imageEdit, setImageEdit] =
+    useState<ImageEditState>(FULL_IMAGE_EDIT);
+
+  const [previewLayout, setPreviewLayout] =
+    useState({ width: 0, height: 0 });
+
+  const [originalImage, setOriginalImage] =
+    useState<EditableImage | null>(null);
+
+  const [cropEditorVisible, setCropEditorVisible] =
+    useState(false);
+
+  const [imageProcessing, setImageProcessing] =
+    useState(false);
+
   const [imageSource, setImageSource] =
     useState<'camera' | 'library' | null>(
       null
@@ -136,7 +310,21 @@ export default function ScanScreen() {
   const [scanning, setScanning] =
     useState(false);
 
-  const [, setSaving] =
+  const [recognizing, setRecognizing] =
+    useState(false);
+
+  const [ocrResult, setOcrResult] =
+    useState<PrescriptionTextResult | null>(
+      null
+    );
+
+  const [reviewMedicines, setReviewMedicines] =
+    useState<ReviewMedicine[]>([]);
+
+  const [existingMedicines, setExistingMedicines] =
+    useState<MedicineRecord[]>([]);
+
+  const [saving, setSaving] =
     useState(false);
 
   const [toastVisible, setToastVisible] =
@@ -161,6 +349,318 @@ export default function ScanScreen() {
     setTimeout(() => {
       setToastVisible(false);
     }, 3000);
+
+  };
+
+
+  const clearRecognition = () => {
+
+    setOcrResult(null);
+
+    setReviewMedicines([]);
+
+    setErrorMessage(null);
+
+  };
+
+
+  const applySelectedImage = (
+    image: EditableImage,
+    source: 'camera' | 'library'
+  ) => {
+
+    setOriginalImage(image);
+
+    setImageUri(image.uri);
+
+    setImageDimensions({
+      width: image.width,
+      height: image.height,
+    });
+
+    setImageEdit(FULL_IMAGE_EDIT);
+
+    setImageSource(source);
+
+    clearRecognition();
+
+  };
+
+
+  const handleCropConfirm = (
+    image: EditableImage,
+    rotation: number,
+    crop: ImageEditState['crop']
+  ) => {
+
+    setImageUri(image.uri);
+
+    setImageDimensions({
+      width: image.width,
+      height: image.height,
+    });
+
+    setImageEdit({
+      rotation,
+      crop,
+    });
+
+    setCropEditorVisible(false);
+
+    clearRecognition();
+
+    showToast(
+      'Crop applied. Extract the text when ready.'
+    );
+
+  };
+
+
+  const handleUseOriginal = () => {
+
+    if (!originalImage) {
+      return;
+    }
+
+    const alreadyOriginal =
+      originalImage.uri === imageUri &&
+      imageEdit.rotation === 0 &&
+      isFullImageCrop(imageEdit.crop);
+
+    if (alreadyOriginal) {
+      return;
+    }
+
+    setImageUri(originalImage.uri);
+
+    setImageDimensions({
+      width: originalImage.width,
+      height: originalImage.height,
+    });
+
+    setImageEdit(FULL_IMAGE_EDIT);
+
+    clearRecognition();
+
+    showToast(
+      'Original image restored'
+    );
+
+  };
+
+
+  const handleQuickRotate = async () => {
+
+    if (
+      !originalImage ||
+      !imageUri ||
+      imageProcessing ||
+      recognizing ||
+      originalImage.width <= 0 ||
+      originalImage.height <= 0
+    ) {
+      return;
+    }
+
+    setImageProcessing(true);
+    setErrorMessage(null);
+
+    try {
+
+      const nextEdit =
+        rotateEditClockwise(imageEdit);
+
+      const rotated =
+        await rotateImage(
+          originalImage,
+          nextEdit.rotation,
+          nextEdit.crop
+        );
+
+      setImageEdit(nextEdit);
+
+      setImageUri(rotated.uri);
+
+      setImageDimensions({
+        width: rotated.width,
+        height: rotated.height,
+      });
+
+      clearRecognition();
+
+      showToast(
+        'Image rotated 90Ãƒâ€šÃ‚Â°'
+      );
+
+    } catch (error) {
+
+      if (__DEV__) {
+        console.error(
+          '[scan] Rotation failed',
+          {
+            uri: originalImage.uri,
+            width: originalImage.width,
+            height: originalImage.height,
+            edit: imageEdit,
+            error,
+          }
+        );
+      }
+
+      setErrorMessage(
+        isImageEditError(error)
+          ? error.message
+          : 'Unable to rotate the image. Please try again.'
+      );
+
+    } finally {
+
+      setImageProcessing(false);
+
+    }
+
+  };
+
+
+  const buildReviewMedicines = (
+    parsed: ParsedPrescriptionMedicine[],
+    existing: MedicineRecord[]
+  ): ReviewMedicine[] =>
+    parsed.map(
+      (
+        medicine,
+        index
+      ): ReviewMedicine => {
+        const duplicate =
+          findDuplicateMedicine(
+            existing,
+            medicine
+          );
+
+        return {
+          id: `review-${Date.now()}-${index}`,
+          name: medicine.name,
+          dosage: medicine.dosage,
+          timing: medicine.timing,
+          frequency: medicine.frequency,
+          startDate: medicine.startDate,
+          endDate: medicine.endDate,
+          schedules:
+            medicine.schedules.map(
+              (schedule, scheduleIndex) => ({
+                id: `schedule-${Date.now()}-${index}-${scheduleIndex}`,
+                time: schedule.time,
+                quantity: schedule.quantity,
+              })
+            ),
+          warnings: medicine.warnings,
+          duplicateOf: duplicate
+            ? duplicate.name
+            : null,
+        };
+      }
+    );
+
+
+  const analyzePrescription = async (
+    uri: string
+  ) => {
+
+    setRecognizing(true);
+
+    setOcrResult(null);
+
+    setReviewMedicines([]);
+
+    try {
+
+      const result =
+        await extractPrescriptionText(uri);
+
+      setOcrResult(result);
+
+      const combinedText =
+        result.combinedText ||
+        [result.englishText, result.hindiText]
+          .filter(Boolean)
+          .join('\n');
+
+      let currentMedicines: MedicineRecord[] =
+        [];
+
+      try {
+
+        currentMedicines =
+          await fetchMedicines();
+
+        setExistingMedicines(
+          currentMedicines
+        );
+
+      } catch (error) {
+
+        console.log(
+          'Unable to load existing medicines for duplicate check:',
+          error
+        );
+
+      }
+
+      setReviewMedicines(
+        buildReviewMedicines(
+          parsePrescriptionMedicines(
+            combinedText
+          ),
+          currentMedicines
+        )
+      );
+
+    } catch (error) {
+
+      if (__DEV__) {
+        console.error(
+          '[scan] Prescription recognition failed',
+          {
+            code:
+              error instanceof OcrError
+                ? error.code
+                : undefined,
+            message:
+              error instanceof Error
+                ? error.message
+                : String(error),
+          }
+        );
+      }
+
+      setOcrResult(null);
+
+      setErrorMessage(
+        error instanceof OcrError
+          ? error.message
+          : 'The prescription text could not be read. Please try again.'
+      );
+
+    } finally {
+
+      setRecognizing(false);
+
+    }
+
+  };
+
+
+  const handleExtractText = () => {
+
+    if (
+      !imageUri ||
+      recognizing ||
+      imageProcessing
+    ) {
+      return;
+    }
+
+    void analyzePrescription(imageUri);
 
   };
 
@@ -219,12 +719,37 @@ export default function ScanScreen() {
 
       }
 
-      setImageUri(asset.uri);
+      let image: EditableImage;
 
-      setImageSource('camera');
+      try {
+
+        image =
+          await resolvePickedImage(asset);
+
+      } catch (error) {
+
+        if (__DEV__) {
+          console.error(
+            '[scan] Captured image could not be resolved',
+            error
+          );
+        }
+
+        setErrorMessage(
+          'The captured image could not be loaded. Please try again.'
+        );
+
+        return;
+
+      }
+
+      applySelectedImage(
+        image,
+        'camera'
+      );
 
       showToast(
-        'Prescription image captured'
+        'Prescription image captured. Crop it or extract the text.'
       );
 
     } catch (error) {
@@ -303,12 +828,37 @@ export default function ScanScreen() {
 
       }
 
-      setImageUri(asset.uri);
+      let image: EditableImage;
 
-      setImageSource('library');
+      try {
+
+        image =
+          await resolvePickedImage(asset);
+
+      } catch (error) {
+
+        if (__DEV__) {
+          console.error(
+            '[scan] Selected image could not be resolved',
+            error
+          );
+        }
+
+        setErrorMessage(
+          'The selected image could not be loaded. Please try again.'
+        );
+
+        return;
+
+      }
+
+      applySelectedImage(
+        image,
+        'library'
+      );
 
       showToast(
-        'Prescription image selected'
+        'Prescription image selected. Crop it or extract the text.'
       );
 
     } catch (error) {
@@ -334,168 +884,471 @@ export default function ScanScreen() {
 
 
   // ==================================================
-  // CONFIRM & SAVE REMINDER
+  // REVIEW & SAVE MEDICINES
   // ==================================================
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const confirmReminder =
-    async () => {
+  const updateReviewMedicine = (
+    id: string,
+    next: ReviewMedicine
+  ) => {
 
-      try {
+    const warnings =
+      next.warnings.filter((warning) => {
 
-        setSaving(true);
+        if (
+          warning.startsWith(
+            'Dosage not found'
+          )
+        ) {
 
-
-        // --------------------------------------------
-        // Medicine extracted from prescription
-        // --------------------------------------------
-
-        const newMedicine = {
-
-          id:
-            `scan-${Date.now()}`,
-
-          name:
-            'Azithromycin',
-
-          dosage:
-            '500mg',
-
-          time:
-            '8:00 AM',
-
-          timing:
-            'After Breakfast',
-
-          frequency:
-            'Once Daily',
-
-          startDate:
-            new Date()
-              .toISOString()
-              .split('T')[0],
-
-          endDate:
-            new Date(
-              Date.now() +
-              5 * 24 * 60 * 60 * 1000
-            )
-              .toISOString()
-              .split('T')[0],
-
-          status:
-            'Pending',
-
-        };
-
-
-        // --------------------------------------------
-        // Get existing medicines
-        // --------------------------------------------
-
-        const existingData =
-          await AsyncStorage.getItem(
-            MEDICINES_STORAGE_KEY
-          );
-
-
-        let existingMedicines: any[] =
-          [];
-
-
-        if (existingData) {
-
-          try {
-
-            existingMedicines =
-              JSON.parse(
-                existingData
-              );
-
-            if (
-              !Array.isArray(
-                existingMedicines
-              )
-            ) {
-              existingMedicines = [];
-            }
-
-          } catch {
-
-            existingMedicines = [];
-
-          }
+          return !next.dosage.trim();
 
         }
 
-
-        // --------------------------------------------
-        // Add scanned medicine
-        // --------------------------------------------
-
-        const updatedMedicines = [
-
-          newMedicine,
-
-          ...existingMedicines,
-
-        ];
-
-
-        // --------------------------------------------
-        // Save medicines
-        // --------------------------------------------
-
-        await AsyncStorage.setItem(
-
-          MEDICINES_STORAGE_KEY,
-
-          JSON.stringify(
-            updatedMedicines
+        if (
+          warning.startsWith(
+            'Food timing was not found'
           )
+        ) {
 
-        );
+          return !next.timing.trim();
 
+        }
 
-        // --------------------------------------------
-        // Success
-        // --------------------------------------------
+        if (
+          warning.startsWith(
+            'Frequency was not found'
+          )
+        ) {
 
-        setSaving(false);
+          return !next.frequency.trim();
 
-        showToast(
-          'Medicine reminder created successfully'
-        );
+        }
 
+        if (
+          warning.startsWith(
+            'Dose time was not found'
+          )
+        ) {
 
-        // --------------------------------------------
-        // Navigate to Medicines
-        // --------------------------------------------
-
-        setTimeout(() => {
-
-          router.replace(
-            '/medicines'
+          return !next.schedules.some(
+            (schedule) =>
+              isValidMedicineTime(
+                schedule.time
+              )
           );
 
-        }, 1000);
+        }
+
+        if (
+          warning.includes(
+            'Start date was not found'
+          )
+        ) {
+
+          return !next.startDate.trim();
+
+        }
+
+        return true;
+
+      });
+
+    const duplicate =
+      findDuplicateMedicine(
+        existingMedicines,
+        next
+      );
+
+    setReviewMedicines((current) =>
+      current.map((medicine) =>
+        medicine.id === id
+          ? {
+              ...next,
+              warnings,
+              duplicateOf: duplicate
+                ? duplicate.name
+                : null,
+            }
+          : medicine
+      )
+    );
+
+  };
+
+
+  const removeReviewMedicine = (
+    id: string
+  ) => {
+
+    setReviewMedicines((current) =>
+      current.filter(
+        (medicine) =>
+          medicine.id !== id
+      )
+    );
+
+  };
+
+
+  const validateReviewMedicines = (
+    medicines: ReviewMedicine[]
+  ): string[] => {
+
+    const problems: string[] = [];
+
+    medicines.forEach(
+      (medicine, index) => {
+
+        const label =
+          medicine.name.trim() ||
+          `Medicine ${index + 1}`;
+
+        if (!medicine.name.trim()) {
+
+          problems.push(
+            `${label}: medicine name is missing.`
+          );
+
+        }
+
+        if (!medicine.dosage.trim()) {
+
+          problems.push(
+            `${label}: dosage is missing.`
+          );
+
+        }
+
+        if (!medicine.timing.trim()) {
+
+          problems.push(
+            `${label}: timing is missing.`
+          );
+
+        }
+
+        if (
+          medicine.schedules.length === 0
+        ) {
+
+          problems.push(
+            `${label}: add at least one dose time.`
+          );
+
+        }
+
+        const invalidTime =
+          medicine.schedules.find(
+            (schedule) =>
+              !isValidMedicineTime(
+                schedule.time
+              )
+          );
+
+        if (invalidTime) {
+
+          problems.push(
+            `${label}: "${invalidTime.time}" is not a valid time.`
+          );
+
+        }
+
+      }
+    );
+
+    return problems;
+
+  };
+
+
+  const persistReviewMedicines = async (
+    medicines: ReviewMedicine[]
+  ) => {
+
+    setSaving(true);
+
+    let remindersAllowed = false;
+
+    try {
+
+      remindersAllowed =
+        await requestNotificationPermission();
+
+    } catch (error) {
+
+      console.log(
+        'Unable to request notification permission:',
+        error
+      );
+
+    }
+
+    const saved: {
+      medicine: ReviewMedicine;
+      created: Awaited<
+        ReturnType<typeof createMedicine>
+      >;
+    }[] = [];
+
+    const failed: ReviewMedicine[] = [];
+
+    let firstError = '';
+
+    for (const medicine of medicines) {
+
+      try {
+
+        const created =
+          await createMedicine({
+            name: medicine.name,
+            dosage: medicine.dosage,
+            timing: medicine.timing,
+            frequency:
+              medicine.frequency,
+            startDate:
+              medicine.startDate,
+            endDate:
+              medicine.endDate,
+            schedules:
+              medicine.schedules.map(
+                (schedule) => ({
+                  time: schedule.time,
+                  quantity:
+                    schedule.quantity,
+                })
+              ),
+          });
+
+        saved.push({
+          medicine,
+          created,
+        });
 
       } catch (error) {
 
+        failed.push(medicine);
+
+        if (!firstError) {
+
+          firstError =
+            error instanceof Error
+              ? error.message
+              : 'Unable to save medicine.';
+
+        }
+
         console.error(
-          'Failed to save medicine:',
+          'Failed to save scanned medicine:',
           error
-        );
-
-        setSaving(false);
-
-        showToast(
-          'Unable to save medicine reminder'
         );
 
       }
 
-    };
+    }
+
+    if (saved.length > 0) {
+
+      try {
+
+        await syncMedicineReminders(
+          saved.map(({ medicine, created }) => ({
+            _id:
+              created.id ||
+              medicine.id,
+            name: created.name,
+            dosage: created.dosage,
+            timing: created.timing,
+            time: created.time,
+            frequency:
+              created.frequency,
+            startDate:
+              created.startDate,
+            endDate:
+              created.endDate,
+            schedules:
+              created.schedules.length > 0
+                ? created.schedules
+                : medicine.schedules,
+          })),
+          { partial: true }
+        );
+
+      } catch (error) {
+
+        console.log(
+          'Unable to schedule scanned medicine reminders:',
+          error
+        );
+
+      }
+
+    }
+
+    setSaving(false);
+
+    if (failed.length > 0) {
+
+      setReviewMedicines(failed);
+
+      Alert.alert(
+        saved.length > 0
+          ? 'Some Medicines Were Added'
+          : 'Unable to Add Medicines',
+        saved.length > 0
+          ? `${saved.length} medicine${
+              saved.length === 1 ? '' : 's'
+            } added. ${failed.length} could not be saved. ${firstError}`
+          : firstError ||
+              'Please check your connection and try again.'
+      );
+
+      return;
+
+    }
+
+    setReviewMedicines([]);
+
+    showToast(
+      `${saved.length} medicine${
+        saved.length === 1 ? '' : 's'
+      } added to Medicines`
+    );
+
+    if (!remindersAllowed) {
+
+      Alert.alert(
+        'Reminders Are Off',
+        'Notifications are disabled for Health Saathi, so medicine reminders will not appear. Enable notifications in your device settings to receive them.'
+      );
+
+    }
+
+    setTimeout(() => {
+
+      router.replace('/medicines');
+
+    }, 800);
+
+  };
+
+
+  const confirmReminder = async () => {
+
+    if (reviewMedicines.length === 0) {
+
+      Alert.alert(
+        'No Medicines Found',
+        'No medicine details were recognized. Edit the prescription or try a clearer image.'
+      );
+
+      return;
+
+    }
+
+    const problems =
+      validateReviewMedicines(
+        reviewMedicines
+      );
+
+    if (problems.length > 0) {
+
+      Alert.alert(
+        'Check Medicine Details',
+        problems
+          .slice(0, 5)
+          .join('\n') +
+          (problems.length > 5
+            ? `\n...and ${
+                problems.length - 5
+              } more.`
+            : '')
+      );
+
+      return;
+
+    }
+
+    let currentMedicines =
+      existingMedicines;
+
+    try {
+
+      currentMedicines =
+        await fetchMedicines();
+
+      setExistingMedicines(
+        currentMedicines
+      );
+
+    } catch (error) {
+
+      console.log(
+        'Unable to refresh medicines before duplicate check:',
+        error
+      );
+
+    }
+
+    const duplicates =
+      reviewMedicines.filter(
+        (medicine, index) =>
+          Boolean(
+            findDuplicateMedicine(
+              currentMedicines,
+              medicine
+            )
+          ) ||
+          reviewMedicines.some(
+            (other, otherIndex) =>
+              otherIndex !== index &&
+              other.name
+                .trim()
+                .toLowerCase() ===
+                medicine.name
+                  .trim()
+                  .toLowerCase() &&
+              other.dosage
+                .replace(/\s+/g, '')
+                .toLowerCase() ===
+                medicine.dosage
+                  .replace(/\s+/g, '')
+                  .toLowerCase()
+          )
+      );
+
+    if (duplicates.length > 0) {
+
+      Alert.alert(
+        'Possible Duplicate',
+        `${duplicates
+          .map((medicine) => medicine.name)
+          .join(', ')} may already exist with the same dosage. Add anyway?`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Add Anyway',
+            onPress: () => {
+              void persistReviewMedicines(
+                reviewMedicines
+              );
+            },
+          },
+        ]
+      );
+
+      return;
+
+    }
+
+    await persistReviewMedicines(
+      reviewMedicines
+    );
+
+  };
 
 
   // ==================================================
@@ -507,66 +1360,35 @@ export default function ScanScreen() {
   }
 
 
-  // ==================================================
-  // BOTTOM TAB
-  // ==================================================
+  const pixelRatio = PixelRatio.get();
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks, react-hooks/exhaustive-deps
-  const BottomTab = ({
-    icon,
-    label,
-    active = false,
-    onPress,
-  }: {
-    icon:
-      keyof typeof Ionicons.glyphMap;
+  const previewSourceWidth =
+    imageDimensions.width / pixelRatio;
 
-    label: string;
+  const previewSourceHeight =
+    imageDimensions.height / pixelRatio;
 
-    active?: boolean;
+  const previewScale =
+    previewSourceWidth > 0 &&
+    previewSourceHeight > 0 &&
+    previewLayout.width > 0 &&
+    previewLayout.height > 0
+      ? Math.min(
+          1,
+          previewLayout.width / previewSourceWidth,
+          previewLayout.height / previewSourceHeight
+        )
+      : 0;
 
-    onPress: () => void;
-  }) => {
+  const previewImageWidth =
+    Math.floor(
+      previewSourceWidth * previewScale * pixelRatio
+    ) / pixelRatio;
 
-    return (
-
-      <Pressable
-        onPress={onPress}
-
-        style={[
-          styles.bottomTab,
-
-          active &&
-            styles.bottomTabActive,
-        ]}
-      >
-
-        <Ionicons
-          name={icon}
-          size={22}
-          color={
-            active
-              ? COLORS.primaryBlue
-              : COLORS.secondaryText
-          }
-        />
-
-        <Text
-          style={[
-            styles.bottomTabText,
-
-            active &&
-              styles.bottomTabTextActive,
-          ]}
-        >
-          {label}
-        </Text>
-
-      </Pressable>
-
-    );
-
-  };
+  const previewImageHeight =
+    Math.floor(
+      previewSourceHeight * previewScale * pixelRatio
+    ) / pixelRatio;
 
 
   // ==================================================
@@ -575,73 +1397,16 @@ export default function ScanScreen() {
 
   return (
 
-    <View
+    <SafeAreaView
       style={styles.screen}
+      edges={['top']}
     >
 
       {/* ============================================ */}
-      {/* HEADER */}
+      {/* HEADER (shared across all screens) */}
       {/* ============================================ */}
 
-      <View
-        style={styles.topHeader}
-      >
-
-        <Text
-          style={
-            styles.welcomeText
-          }
-        >
-          Welcome back, sawan
-        </Text>
-
-
-        <View
-          style={
-            styles.headerRight
-          }
-        >
-
-          <View
-            style={
-              styles.notificationIcon
-            }
-          >
-
-            <Ionicons
-              name="notifications-outline"
-              size={24}
-              color={
-                COLORS.mainText
-              }
-            />
-
-            <View
-              style={
-                styles.notificationDot
-              }
-            />
-
-          </View>
-
-
-          <View
-            style={styles.avatar}
-          >
-
-            <Text
-              style={
-                styles.avatarText
-              }
-            >
-              S
-            </Text>
-
-          </View>
-
-        </View>
-
-      </View>
+      <AppHeader />
 
 
       {/* ============================================ */}
@@ -691,8 +1456,9 @@ export default function ScanScreen() {
                 styles.pageSubtitleMobile,
             ]}
           >
-            Capture or upload a prescription
-            to preview the image.
+            Capture or upload a prescription,
+            then crop it before extracting the
+            text.
           </Text>
 
         </View>
@@ -723,15 +1489,43 @@ export default function ScanScreen() {
                 isMobile &&
                   styles.previewFrameMobile,
               ]}
+              onLayout={(event) => {
+                setPreviewLayout({
+                  width: event.nativeEvent.layout.width,
+                  height: event.nativeEvent.layout.height,
+                });
+              }}
             >
 
-              <Image
-                source={{
-                  uri: imageUri,
-                }}
-                style={styles.previewImage}
-                resizeMode="contain"
-              />
+              {previewImageWidth > 0 &&
+                previewImageHeight > 0 && (
+                  <Image
+                    source={{
+                      uri: imageUri,
+                    }}
+                    style={{
+                      width: previewImageWidth,
+                      height: previewImageHeight,
+                    }}
+                    resizeMode="contain"
+                    fadeDuration={0}
+                  />
+                )}
+
+              {imageDimensions.width > 0 &&
+                imageDimensions.height > 0 && (
+                  <View
+                    pointerEvents="none"
+                    style={styles.previewDimensionBadge}
+                  >
+                    <Text
+                      style={styles.previewDimensionText}
+                    >
+                      {imageDimensions.width} ÃƒÆ’Ã¢â‚¬â€{' '}
+                      {imageDimensions.height} px
+                    </Text>
+                  </View>
+                )}
 
             </View>
 
@@ -785,95 +1579,157 @@ export default function ScanScreen() {
             {scanning
               ? 'Waiting for you to choose a prescription image.'
               : imageUri
-                ? 'You can capture a new image or choose a different one.'
+                ? 'Crop or rotate the image, then extract the prescription text.'
                 : 'Choose a clear photo of your prescription to preview it here.'}
           </Text>
 
 
-          {!scanning && (
+          {!scanning && !recognizing && !imageProcessing && (
+            imageUri ? (
 
-            <View
-              style={[
-                styles.scanButtons,
+              <View style={styles.imageActions}>
+                <View style={styles.imageTools}>
+                  <ScanActionButton
+                    icon="crop-outline"
+                    label="Crop Image"
+                    onPress={() => setCropEditorVisible(true)}
+                    disabled={
+                      imageDimensions.width <= 0 ||
+                      imageDimensions.height <= 0
+                    }
+                  />
 
-                isMobile &&
-                  styles.scanButtonsMobile,
-              ]}
-            >
+                  <ScanActionButton
+                    icon="refresh-outline"
+                    label="Rotate Image"
+                    onPress={handleQuickRotate}
+                    disabled={
+                      imageDimensions.width <= 0 ||
+                      imageDimensions.height <= 0
+                    }
+                  />
 
-              {/* CAPTURE */}
+                  <ScanActionButton
+                    icon="image-outline"
+                    label="Use Original Image"
+                    onPress={handleUseOriginal}
+                    disabled={
+                      !originalImage ||
+                      (imageEdit.rotation === 0 &&
+                        isFullImageCrop(imageEdit.crop) &&
+                        originalImage.uri === imageUri)
+                    }
+                  />
+                </View>
 
-              <Pressable
-                onPress={
-                  handleCapture
-                }
+                <View style={styles.imageTools}>
+                  <ScanActionButton
+                    icon="camera-outline"
+                    label="Retake Image"
+                    onPress={handleCapture}
+                  />
 
+                  <ScanActionButton
+                    icon="images-outline"
+                    label="Choose Another Image"
+                    onPress={handleUpload}
+                  />
+                </View>
+
+                <ScanActionButton
+                  wide
+                  primary
+                  icon="scan-outline"
+                  label={
+                    ocrResult
+                      ? 'Scan Prescription Again'
+                      : 'Extract Prescription Text'
+                  }
+                  onPress={handleExtractText}
+                />
+              </View>
+
+            ) : (
+
+              <View
                 style={[
-                  styles.captureButton,
+                  styles.scanButtons,
 
                   isMobile &&
-                    styles.scanButtonMobile,
+                    styles.scanButtonsMobile,
                 ]}
               >
 
-                <Ionicons
-                  name="camera-outline"
-                  size={20}
-                  color={
-                    COLORS.white
+                <Pressable
+                  onPress={
+                    handleCapture
                   }
-                />
 
-                <Text
-                  style={
-                    styles.captureButtonText
-                  }
+                  style={[
+                    styles.captureButton,
+
+                    isMobile &&
+                      styles.scanButtonMobile,
+                  ]}
                 >
-                  Capture
-                </Text>
 
-              </Pressable>
+                  <Ionicons
+                    name="camera-outline"
+                    size={20}
+                    color={
+                      COLORS.white
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.captureButtonText
+                    }
+                  >
+                    Capture
+                  </Text>
+
+                </Pressable>
 
 
-              {/* UPLOAD */}
-
-              <Pressable
-                onPress={
-                  handleUpload
-                }
-
-                style={[
-                  styles.uploadButton,
-
-                  isMobile &&
-                    styles.scanButtonMobile,
-                ]}
-              >
-
-                <Ionicons
-                  name="cloud-upload-outline"
-                  size={20}
-                  color={
-                    COLORS.mainText
+                <Pressable
+                  onPress={
+                    handleUpload
                   }
-                />
 
-                <Text
-                  style={
-                    styles.uploadButtonText
-                  }
+                  style={[
+                    styles.uploadButton,
+
+                    isMobile &&
+                      styles.scanButtonMobile,
+                  ]}
                 >
-                  Upload
-                </Text>
 
-              </Pressable>
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={20}
+                    color={
+                      COLORS.mainText
+                    }
+                  />
 
-            </View>
+                  <Text
+                    style={
+                      styles.uploadButtonText
+                    }
+                  >
+                    Upload
+                  </Text>
 
+                </Pressable>
+
+              </View>
+
+            )
           )}
 
 
-          {scanning && (
+          {(scanning || recognizing || imageProcessing) && (
 
             <View
               style={
@@ -892,9 +1748,13 @@ export default function ScanScreen() {
                   styles.loadingText
                 }
               >
-                {activeSource === 'camera'
-                  ? 'Waiting for the camera...'
-                  : 'Waiting for your selection...'}
+                {imageProcessing
+                  ? 'Preparing the edited image...'
+                  : recognizing
+                    ? 'Reading the prescription...'
+                    : activeSource === 'camera'
+                      ? 'Waiting for the camera...'
+                      : 'Waiting for your selection...'}
               </Text>
 
             </View>
@@ -971,7 +1831,9 @@ export default function ScanScreen() {
                     styles.extractedLabel
                   }
                 >
-                  SELECTED IMAGE
+                  {ocrResult
+                    ? 'RECOGNIZED TEXT'
+                    : 'SELECTED IMAGE'}
                 </Text>
 
 
@@ -983,7 +1845,9 @@ export default function ScanScreen() {
                       styles.resultTitleMobile,
                   ]}
                 >
-                  Prescription preview
+                  {ocrResult
+                    ? 'Prescription text'
+                    : 'Prescription preview'}
                 </Text>
 
               </View>
@@ -1025,33 +1889,297 @@ export default function ScanScreen() {
             </View>
 
 
-            <View
-              style={
-                styles.reviewNotice
-              }
-            >
+            {ocrResult ? (
 
-              <Ionicons
-                name="information-circle-outline"
-                size={23}
-                color={
-                  COLORS.primaryBlue
-                }
-              />
-
-              <Text
+              <View
                 style={
-                  styles.reviewNoticeText
+                  styles.ocrResult
                 }
               >
-                Prescription reading is not
-                connected yet. This image has
-                not been analyzed, and no
-                medicine or reminder has been
-                saved.
-              </Text>
+
+                <View
+                  style={
+                    styles.ocrSection
+                  }
+                >
+
+                  <Text
+                    style={
+                      styles.ocrLanguage
+                    }
+                  >
+                    ENGLISH
+                  </Text>
+
+                  <Text
+                    selectable
+                    style={
+                      styles.ocrText
+                    }
+                  >
+                    {ocrResult.englishText ||
+                      'No English text was recognized.'}
+                  </Text>
+
+                </View>
+
+
+                <View
+                  style={
+                    styles.ocrSection
+                  }
+                >
+
+                  <Text
+                    style={
+                      styles.ocrLanguage
+                    }
+                  >
+                    HINDI
+                  </Text>
+
+                  <Text
+                    selectable
+                    style={
+                      styles.ocrTextHindi
+                    }
+                  >
+                    {ocrResult.hindiText ||
+                      'No Hindi text was recognized.'}
+                  </Text>
+
+                </View>
+
+              </View>
+
+            ) : (
+
+              <View
+                style={
+                  styles.reviewNotice
+                }
+              >
+
+                <Ionicons
+                  name={
+                    recognizing
+                      ? 'hourglass-outline'
+                      : 'information-circle-outline'
+                  }
+                  size={23}
+                  color={
+                    COLORS.primaryBlue
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.reviewNoticeText
+                  }
+                >
+                  {recognizing
+                    ? 'Reading the prescription. The first scan may take longer while the recognition model is prepared.'
+                    : 'No recognized text yet. Choose a clear prescription image to read it.'}
+                </Text>
+
+              </View>
+
+            )}
+
+          </View>
+
+        )}
+
+
+        {/* ========================================== */}
+        {/* MEDICINE REVIEW */}
+        {/* ========================================== */}
+
+        {ocrResult && (
+
+          <View
+            style={[
+              styles.reviewSection,
+
+              isMobile &&
+                styles.reviewSectionMobile,
+            ]}
+          >
+
+            <View
+              style={styles.reviewSectionHeader}
+            >
+
+              <View
+                style={styles.reviewIcon}
+              >
+
+                <Ionicons
+                  name="medkit-outline"
+                  size={21}
+                  color={
+                    COLORS.primaryBlue
+                  }
+                />
+
+              </View>
+
+              <View
+                style={{
+                  flex: 1,
+                }}
+              >
+
+                <Text
+                  style={
+                    styles.extractedLabel
+                  }
+                >
+                  MEDICINES FOUND
+                </Text>
+
+                <Text
+                  style={[
+                    styles.resultTitle,
+
+                    isMobile &&
+                      styles.resultTitleMobile,
+                  ]}
+                >
+                  {reviewMedicines.length}{' '}
+                  {reviewMedicines.length ===
+                  1
+                    ? 'medicine'
+                    : 'medicines'}{' '}
+                  to review
+                </Text>
+
+              </View>
 
             </View>
+
+
+            <Text
+              style={styles.reviewHelp}
+            >
+              Check every field. Missing or
+              uncertain details are left
+              blank on purpose, so edit them
+              before adding.
+            </Text>
+
+
+            {reviewMedicines.length === 0 ? (
+
+              <View
+                style={
+                  styles.reviewNotice
+                }
+              >
+
+                <Ionicons
+                  name="search-outline"
+                  size={23}
+                  color={
+                    COLORS.primaryBlue
+                  }
+                />
+
+                <Text
+                  style={
+                    styles.reviewNoticeText
+                  }
+                >
+                  No medicine details were
+                  identified in the recognized
+                  text. Try a clearer image or
+                  add the medicine from the
+                  Medicines screen.
+                </Text>
+
+              </View>
+
+            ) : (
+
+              <View
+                style={{
+                  marginTop: 14,
+                }}
+              >
+
+                {reviewMedicines.map(
+                  (medicine, index) => (
+
+                    <MedicineReviewCard
+                      key={medicine.id}
+                      medicine={medicine}
+                      index={index}
+                      disabled={saving}
+                      onChange={(next) =>
+                        updateReviewMedicine(
+                          medicine.id,
+                          next
+                        )
+                      }
+                      onRemove={() =>
+                        removeReviewMedicine(
+                          medicine.id
+                        )
+                      }
+                    />
+
+                  )
+                )}
+
+
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={saving}
+                  onPress={
+                    confirmReminder
+                  }
+                  style={[
+                    styles.addMedicinesButton,
+
+                    saving &&
+                      styles.addMedicinesButtonDisabled,
+                  ]}
+                >
+
+                  <Ionicons
+                    name={
+                      saving
+                        ? 'hourglass-outline'
+                        : 'add-circle-outline'
+                    }
+                    size={20}
+                    color={
+                      COLORS.white
+                    }
+                  />
+
+                  <Text
+                    style={
+                      styles.addMedicinesText
+                    }
+                  >
+                    {saving
+                      ? 'Saving...'
+                      : `Add ${
+                          reviewMedicines.length
+                        } ${
+                          reviewMedicines.length ===
+                          1
+                            ? 'medicine'
+                            : 'medicines'
+                        } to Medicines`}
+                  </Text>
+
+                </Pressable>
+
+              </View>
+
+            )}
 
           </View>
 
@@ -1120,6 +2248,19 @@ export default function ScanScreen() {
       </View>
 
 
+      {originalImage && cropEditorVisible && (
+        <ImageCropEditor
+          key={originalImage.uri}
+          visible
+          image={originalImage}
+          initialRotation={imageEdit.rotation}
+          initialCrop={imageEdit.crop}
+          onCancel={() => setCropEditorVisible(false)}
+          onConfirm={handleCropConfirm}
+        />
+      )}
+
+
       {/* ============================================ */}
       {/* TOAST */}
       {/* ============================================ */}
@@ -1164,7 +2305,7 @@ export default function ScanScreen() {
 
       )}
 
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1419,6 +2560,10 @@ const styles = StyleSheet.create({
       '#E8F5F8',
 
     marginBottom: 25,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
   },
 
 
@@ -1427,10 +2572,30 @@ const styles = StyleSheet.create({
   },
 
 
-  previewImage: {
-    width: '100%',
+  previewDimensionBadge: {
+    position: 'absolute',
 
-    height: '100%',
+    right: 8,
+
+    bottom: 8,
+
+    paddingHorizontal: 8,
+
+    paddingVertical: 4,
+
+    borderRadius: 6,
+
+    backgroundColor:
+      'rgba(13, 35, 45, 0.72)',
+  },
+
+
+  previewDimensionText: {
+    fontFamily: 'Inter_500Medium',
+
+    fontSize: 10,
+
+    color: COLORS.white,
   },
 
 
@@ -1496,6 +2661,99 @@ const styles = StyleSheet.create({
     width: '100%',
 
     gap: 10,
+  },
+
+
+  imageActions: {
+    width: '100%',
+
+    maxWidth: 620,
+
+    gap: 10,
+  },
+
+
+  imageTools: {
+    flexDirection: 'row',
+
+    flexWrap: 'wrap',
+
+    justifyContent: 'center',
+
+    gap: 10,
+  },
+
+
+  scanActionButton: {
+    minHeight: 50,
+
+    minWidth: 120,
+
+    flexBasis: 140,
+
+    flexGrow: 1,
+
+    paddingHorizontal: 12,
+
+    borderRadius: 10,
+
+    borderWidth: 1,
+
+    borderColor: '#C9E1E6',
+
+    backgroundColor: '#EEF8FA',
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    gap: 7,
+  },
+
+
+  scanActionButtonWide: {
+    width: '100%',
+
+    flexBasis: 'auto',
+
+    flexGrow: 0,
+  },
+
+
+  scanActionButtonPrimary: {
+    borderColor: COLORS.primaryGreen,
+
+    backgroundColor: COLORS.primaryGreen,
+
+    elevation: 2,
+  },
+
+
+  scanActionButtonPressed: {
+    opacity: 0.82,
+  },
+
+
+  scanActionButtonDisabled: {
+    opacity: 0.42,
+  },
+
+
+  scanActionText: {
+    fontFamily: 'Inter_600SemiBold',
+
+    fontSize: 12,
+
+    color: COLORS.primaryBlue,
+
+    flexShrink: 1,
+  },
+
+
+  scanActionTextPrimary: {
+    color: COLORS.white,
   },
 
 
@@ -1769,6 +3027,61 @@ const styles = StyleSheet.create({
 
     color:
       COLORS.primaryBlue,
+  },
+
+
+  ocrResult: {
+    gap: 12,
+  },
+
+
+  ocrSection: {
+    backgroundColor:
+      COLORS.lightBlue,
+
+    borderRadius: 9,
+
+    paddingHorizontal: 15,
+
+    paddingVertical: 13,
+  },
+
+
+  ocrLanguage: {
+    fontFamily:
+      'Inter_700Bold',
+
+    fontSize: 12,
+
+    letterSpacing: 0.4,
+
+    color:
+      COLORS.primaryBlue,
+
+    marginBottom: 7,
+  },
+
+
+  ocrText: {
+    fontFamily:
+      'Inter_400Regular',
+
+    fontSize: 15,
+
+    lineHeight: 23,
+
+    color:
+      COLORS.mainText,
+  },
+
+
+  ocrTextHindi: {
+    fontSize: 16,
+
+    lineHeight: 25,
+
+    color:
+      COLORS.mainText,
   },
 
 
@@ -2161,6 +3474,93 @@ const styles = StyleSheet.create({
 
     color:
       COLORS.mainText,
+  },
+
+
+  // MEDICINE REVIEW
+
+  reviewSection: {
+    backgroundColor: '#F5FAFB',
+
+    borderRadius: 20,
+
+    borderWidth: 1,
+
+    borderColor: COLORS.border,
+
+    padding: 16,
+
+    marginTop: -2,
+  },
+
+  reviewSectionMobile: {
+    padding: 13,
+  },
+
+  reviewSectionHeader: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 10,
+  },
+
+  reviewIcon: {
+    width: 38,
+
+    height: 38,
+
+    borderRadius: 19,
+
+    backgroundColor: COLORS.lightBlue,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+  },
+
+  reviewHelp: {
+    fontFamily: 'Inter_400Regular',
+
+    fontSize: 12,
+
+    lineHeight: 18,
+
+    color: COLORS.secondaryText,
+
+    marginTop: 8,
+  },
+
+  addMedicinesButton: {
+    minHeight: 50,
+
+    borderRadius: 14,
+
+    backgroundColor: COLORS.primaryGreen,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    gap: 8,
+
+    paddingHorizontal: 16,
+
+    marginTop: 4,
+  },
+
+  addMedicinesButtonDisabled: {
+    opacity: 0.6,
+  },
+
+  addMedicinesText: {
+    fontFamily: 'Inter_600SemiBold',
+
+    fontSize: 14,
+
+    color: COLORS.white,
   },
 
 });

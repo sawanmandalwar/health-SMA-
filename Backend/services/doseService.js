@@ -7,6 +7,12 @@ const {
   isTransactionUnsupportedError,
   computeEstimatedRunOutDate,
 } = require("./refillService");
+const {
+  normalizeTimeZone,
+  getDayKeyForDate,
+  getUtcRangeForDayKey,
+  zonedDateTimeToUtc,
+} = require("./timezoneService");
 
 // Tri-state cache: null = unknown, true = supported, false = unsupported.
 let transactionsEnabled = null;
@@ -61,8 +67,46 @@ function getDayRange(reference = new Date()) {
   return { start, end };
 }
 
+function getDayRangeForTimeZone(reference = new Date(), timeZone) {
+  const zone = normalizeTimeZone(timeZone);
+  const date = new Date(reference);
+  const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+  const dayKey = getDayKeyForDate(safeDate, zone);
+  const range = getUtcRangeForDayKey(dayKey, zone);
+
+  return {
+    dayKey,
+    start: range.start,
+    end: range.end,
+  };
+}
+
 function buildDoseKey(medicineId, doseId, dayKey) {
   return `${String(medicineId)}::${String(doseId)}::${dayKey}`;
+}
+
+function resolveScheduledAt({ when, schedule, timeZone }) {
+  const zone = normalizeTimeZone(timeZone);
+  const dayKey = getDayKeyForDate(when, zone);
+  const minutes = timeToMinutes(schedule.time);
+
+  if (minutes === null) {
+    return { dayKey, scheduledAt: when };
+  }
+
+  const [year, month, day] = dayKey.split("-").map(Number);
+  const scheduledAt = zonedDateTimeToUtc(
+    {
+      year,
+      month,
+      day,
+      hour: Math.floor(minutes / 60),
+      minute: minutes % 60,
+    },
+    zone
+  );
+
+  return { dayKey, scheduledAt };
 }
 
 // Normalise stored schedules into entries that always have time/quantity.
@@ -190,6 +234,7 @@ async function applyMarkDoseTx({
   doseId,
   status,
   when,
+  timeZone,
   session,
 }) {
   const medicine = await Medicine.findOne({ _id: medicineId, userId }).session(
@@ -198,7 +243,11 @@ async function applyMarkDoseTx({
   if (!medicine) throw httpError(404, "Medicine not found.");
 
   const schedule = resolveSchedule(medicine, doseId);
-  const dayKey = getDayKey(when);
+  const { dayKey, scheduledAt } = resolveScheduledAt({
+    when,
+    schedule,
+    timeZone,
+  });
   const doseKey = buildDoseKey(medicineId, schedule.id, dayKey);
 
   let history = await MedicineHistory.findOne({ doseKey }).session(session);
@@ -214,7 +263,7 @@ async function applyMarkDoseTx({
       time: schedule.time,
       quantity: schedule.quantity,
       status,
-      scheduledDate: when,
+      scheduledDate: scheduledAt,
       takenAt: status === "Taken" ? when : null,
       stockDeducted: false,
     });
@@ -222,6 +271,7 @@ async function applyMarkDoseTx({
     history.doseId = schedule.id;
     history.time = schedule.time;
     history.quantity = schedule.quantity;
+    history.scheduledDate = scheduledAt;
     if (!history.medicineName) history.medicineName = medicine.name;
     if (!history.dosage) history.dosage = medicine.dosage;
   }
@@ -263,12 +313,17 @@ async function applyMarkDoseFallback({
   doseId,
   status,
   when,
+  timeZone,
 }) {
   const medicine = await Medicine.findOne({ _id: medicineId, userId });
   if (!medicine) throw httpError(404, "Medicine not found.");
 
   const schedule = resolveSchedule(medicine, doseId);
-  const dayKey = getDayKey(when);
+  const { dayKey, scheduledAt } = resolveScheduledAt({
+    when,
+    schedule,
+    timeZone,
+  });
   const doseKey = buildDoseKey(medicineId, schedule.id, dayKey);
 
   let history = await MedicineHistory.findOne({ doseKey });
@@ -285,7 +340,7 @@ async function applyMarkDoseFallback({
         time: schedule.time,
         quantity: schedule.quantity,
         status,
-        scheduledDate: when,
+        scheduledDate: scheduledAt,
         takenAt: status === "Taken" ? when : null,
         stockDeducted: false,
       });
@@ -303,7 +358,7 @@ async function applyMarkDoseFallback({
   history.doseId = schedule.id;
   history.time = schedule.time;
   history.quantity = schedule.quantity;
-  history.scheduledDate = history.scheduledDate || when;
+  history.scheduledDate = scheduledAt;
   if (!history.medicineName) history.medicineName = medicine.name;
   if (!history.dosage) history.dosage = medicine.dosage;
 
@@ -360,7 +415,14 @@ async function applyMarkDoseFallback({
   return { history, medicine, deductedNow, duplicate: alreadyDeducted };
 }
 
-async function markDose({ userId, medicineId, doseId, status, when } = {}) {
+async function markDose({
+  userId,
+  medicineId,
+  doseId,
+  status,
+  when,
+  timeZone,
+} = {}) {
   if (!["Taken", "Missed"].includes(status)) {
     throw httpError(400, "status must be either Taken or Missed.");
   }
@@ -377,6 +439,7 @@ async function markDose({ userId, medicineId, doseId, status, when } = {}) {
           doseId,
           status,
           when: date,
+          timeZone,
           session,
         })
       );
@@ -397,6 +460,7 @@ async function markDose({ userId, medicineId, doseId, status, when } = {}) {
     doseId,
     status,
     when: date,
+    timeZone,
   });
 }
 
@@ -404,6 +468,7 @@ module.exports = {
   timeToMinutes,
   getDayKey,
   getDayRange,
+  getDayRangeForTimeZone,
   buildDoseKey,
   getSchedulesWithIds,
   resolveSchedule,

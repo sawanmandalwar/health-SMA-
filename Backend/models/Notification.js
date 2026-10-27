@@ -36,9 +36,34 @@ const notificationSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    medicineId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Medicine',
+      default: null,
+      index: true,
+    },
+
+    doseId: {
+      type: String,
+      default: null,
+    },
+
+    notificationKey: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,
+  }
+);
+
+notificationSchema.index(
+  { userId: 1, notificationKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { notificationKey: { $type: 'string' } },
   }
 );
 

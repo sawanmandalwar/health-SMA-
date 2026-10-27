@@ -31,6 +31,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { apiFetch, parseJson } from '../services/api';
 
+import { useHeaderUser } from '../hooks/useHeaderUser';
+
+import AppHeader from '../components/AppHeader';
+import { registerPushTokenWithBackend, parseAppointmentDateTime } from '../services/notificationService';
+import { syncTimezoneWithBackend } from '../services/timezoneService';
+
 import { Ionicons } from '@expo/vector-icons';
 
 
@@ -64,8 +70,6 @@ import {
   Inter_700Bold,
 
 } from '@expo-google-fonts/inter';
-
-type NotificationItem = { _id: string; title: string; message: string; type: 'Medicine' | 'Appointment' | 'General'; isRead: boolean; createdAt: string; };
 
 type DashboardMedicineStatus = 'Pending' | 'Taken' | 'Missed';
 
@@ -132,6 +136,41 @@ type DashboardData = {
   unreadNotifications: number;
 };
 
+// ==========================================================
+// DYNAMIC APPOINTMENT BADGE HELPERS
+// ==========================================================
+
+// Whole calendar days between today and the appointment.
+function getCalendarDayOffset(target: Date): number {
+  const now = new Date();
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  ).getTime();
+  const targetStart = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate()
+  ).getTime();
+
+  return Math.round(
+    (targetStart - todayStart) / (24 * 60 * 60 * 1000)
+  );
+}
+
+function getUpcomingBadgeText(offset: number): string {
+  if (offset === 0) return 'Today';
+  if (offset === 1) return 'Tomorrow';
+  if (offset <= 0) return ''; // passed during the current day
+  if (offset <= 6) return `In ${offset} days`;
+  if (offset <= 31) return `In ${Math.round(offset / 7)} weeks`;
+
+  const months = Math.round(offset / 30);
+
+  return months === 1 ? 'In 1 month' : `In ${months} months`;
+}
+
 
 
 
@@ -173,16 +212,13 @@ export default function HomeScreen() {
 
   const { width } = useWindowDimensions();
 
-  const [notificationsOpen, setNotificationsOpen] = React.useState(false);
-  const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
-  const [unreadCount, setUnreadCount] = React.useState(0);
-  const [notificationsLoading, setNotificationsLoading] = React.useState(false);
-  const [notificationsError, setNotificationsError] = React.useState('');
-
   const [dashboard, setDashboard] = React.useState<DashboardData | null>(null);
   const [dashboardLoading, setDashboardLoading] = React.useState(true);
   const [dashboardError, setDashboardError] = React.useState('');
-  const [userName, setUserName] = React.useState('');
+
+  // Greeting name (fresh user data on every focus)
+  const { displayName } = useHeaderUser();
+
   const [updatingMedicineId, setUpdatingMedicineId] = React.useState<string | null>(null);
 
 
@@ -254,65 +290,9 @@ export default function HomeScreen() {
 
 
 
-  const fetchNotifications = async () => {
-    setNotificationsLoading(true);
-    setNotificationsError('');
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        setNotificationsError('Please log in again to view notifications.');
-        setNotifications([]);
-        setUnreadCount(0);
-        return;
-      }
-      const response = await apiFetch(`/api/notifications`, {
-        headers: { Authorization: `Bearer ${token}` },
-        
-      });
-      const data = await parseJson(response);
-      if (!response.ok || !data.success) throw new Error(data.message || 'Could not load notifications.');
-      setNotifications(data.notifications || []);
-      setUnreadCount(data.unreadCount || 0);
-    } catch (error) {
-      console.error('Fetch notifications failed:', error);
-      setNotificationsError('Could not load notifications. Check that the backend is running.');
-    } finally {
-      setNotificationsLoading(false);
-    }
-  };
-
-  const markNotificationRead = async (notificationId: string) => {
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) { setNotificationsError('Please log in again to update notifications.'); return; }
-      const response = await apiFetch(`/api/notifications/${notificationId}/read`, {
-        method: 'PATCH', headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await parseJson(response);
-      if (!response.ok || !data.success) throw new Error(data.message || 'Could not mark as read.');
-      setNotifications((current) => current.map((item) => item._id === notificationId ? { ...item, isRead: true } : item));
-      setUnreadCount((count) => Math.max(0, count - 1));
-    } catch (error) {
-      console.error('Mark notification read failed:', error);
-      setNotificationsError('Could not update this notification. Please try again.');
-    }
-  };
-
   // ==========================================================
   // DASHBOARD DATA (real backend data)
   // ==========================================================
-
-  const loadCachedUser = useCallback(async () => {
-    try {
-      const raw = await AsyncStorage.getItem('user');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.name) setUserName(parsed.name);
-      }
-    } catch (error) {
-      console.error('Unable to read cached user:', error);
-    }
-  }, []);
 
   const loadDashboard = useCallback(async (silent = false) => {
     if (!silent) setDashboardLoading(true);
@@ -334,10 +314,6 @@ export default function HomeScreen() {
       }
 
       setDashboard(data as DashboardData);
-      setUnreadCount(
-        typeof data.unreadNotifications === 'number' ? data.unreadNotifications : 0
-      );
-      if (data.user && data.user.name) setUserName(data.user.name);
     } catch (error) {
       console.error('Dashboard load error:', error);
       setDashboardError(
@@ -348,11 +324,17 @@ export default function HomeScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    (async () => {
-      await loadCachedUser();
-    })();
-  }, [loadCachedUser]);
+  const syncNotificationPreferences = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) return;
+
+      await syncTimezoneWithBackend(token);
+      await registerPushTokenWithBackend(token);
+    } catch (error) {
+      console.error('Notification preference sync error:', error);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -360,6 +342,14 @@ export default function HomeScreen() {
         await loadDashboard();
       })();
     }, [loadDashboard])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        await syncNotificationPreferences();
+      })();
+    }, [syncNotificationPreferences])
   );
 
   const updateMedicineStatus = async (
@@ -484,13 +474,6 @@ export default function HomeScreen() {
     }
   };
 
-  useEffect(() => {
-    if (!notificationsOpen) return;
-    (async () => {
-      await fetchNotifications();
-    })();
-  }, [notificationsOpen]);
-
   if (!fontsLoaded) {
 
     return null;
@@ -559,9 +542,24 @@ export default function HomeScreen() {
 
   const nextAppointment = dashboard?.nextAppointment ?? null;
 
-  const displayName = userName.trim() || 'there';
+// Build the "Upcoming · Today / Tomorrow / In N days" badge text.
+const nextAppointmentBadgeText = (() => {
+  if (!nextAppointment) return '';
 
-  const avatarLetter = (userName.trim().charAt(0) || 'U').toUpperCase();
+  try {
+    const parsed = parseAppointmentDateTime(
+      nextAppointment.date,
+      nextAppointment.time
+    );
+    const label = getUpcomingBadgeText(
+      getCalendarDayOffset(parsed)
+    );
+
+    return label ? `Upcoming · ${label}` : 'Upcoming';
+  } catch {
+    return 'Upcoming';
+  }
+})();
 
   const showInitialState = dashboardLoading && !dashboard;
 
@@ -739,157 +737,9 @@ export default function HomeScreen() {
 
 
 
-          <View style={styles.topHeader}>
+          {/* TOP HEADER (shared across all screens) */}
 
-
-
-            <Text style={styles.headerWelcome}>
-
-              Welcome back, {displayName}
-
-            </Text>
-
-
-
-            <View style={styles.headerRight}>
-
-
-
-              <Pressable
-
-                onPress={() => setNotificationsOpen((open) => !open)}
-
-                accessibilityRole="button"
-
-                accessibilityLabel="Open notifications"
-
-                style={{ padding: 10, alignItems: 'center', justifyContent: 'center' }}
-
-              >
-
-                <Ionicons
-
-                  name="notifications-outline"
-
-                  size={23}
-
-                  color={COLORS.text}
-
-                />
-
-              {unreadCount > 0 && (
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.notificationBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
-                  </View>
-                )}
-              </Pressable>
-
-
-
-              {notificationsOpen && (
-
-  <View
-
-    style={[
-
-      styles.notificationDropdown,
-
-      {
-
-        position: 'absolute',
-
-        top: 55,
-
-        right: 0,
-
-        width: 360,
-
-        backgroundColor: '#FFFFFF',
-
-        zIndex: 99999,
-
-        elevation: 20,
-
-      },
-
-    ]}
-
-  >
-
-                  <View style={styles.notificationDropdownHeader}>
-
-                    <Text style={styles.notificationDropdownTitle}>Notifications</Text>
-
-                    <Pressable onPress={() => setNotificationsOpen(false)}>
-
-                      <Ionicons name="close" size={20} color={COLORS.secondary} />
-
-                    </Pressable>
-
-                  </View>
-
-
-
-                  {notificationsLoading ? (
-                    <View style={styles.notificationEmptyState}><Text style={styles.notificationEmptyText}>Loading notifications...</Text></View>
-                  ) : notificationsError ? (
-                    <View style={styles.notificationEmptyState}>
-                      <Ionicons name="alert-circle-outline" size={28} color={COLORS.red} />
-                      <Text style={styles.notificationEmptyText}>{notificationsError}</Text>
-                      <Pressable onPress={fetchNotifications} style={styles.notificationRetryButton}><Text style={styles.notificationRetryText}>Try again</Text></Pressable>
-                    </View>
-                  ) : notifications.length === 0 ? (
-                    <View style={styles.notificationEmptyState}>
-                      <Ionicons name="notifications-outline" size={30} color={COLORS.secondary} />
-                      <Text style={styles.notificationEmptyTitle}>No notifications yet</Text>
-                      <Text style={styles.notificationEmptyText}>Medicine and appointment notifications will appear here.</Text>
-                    </View>
-                  ) : (
-                    <ScrollView style={styles.notificationList} nestedScrollEnabled>
-                      {notifications.map((item) => (
-                        <Pressable key={item._id} onPress={() => !item.isRead && markNotificationRead(item._id)} style={[styles.notificationItem, !item.isRead && styles.notificationUnread]}>
-                          <View style={styles.notificationItemIcon}>
-                            <Ionicons name={item.type === 'Medicine' ? 'medical-outline' : item.type === 'Appointment' ? 'calendar-outline' : 'information-circle-outline'} size={20} color={item.type === 'Appointment' ? COLORS.green : COLORS.primary} />
-                          </View>
-                          <View style={styles.notificationItemContent}>
-                            <View style={styles.notificationItemTitleRow}>
-                              <Text style={styles.notificationItemTitle}>{item.title}</Text>
-                              {!item.isRead && <View style={styles.notificationUnreadDot} />}
-                            </View>
-                            <Text style={styles.notificationItemMessage}>{item.message}</Text>
-                            <Text style={styles.notificationItemDate}>{new Date(item.createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</Text>
-                            {!item.isRead && <Text style={styles.notificationMarkRead}>Tap to mark as read</Text>}
-                          </View>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  )}
-
-                </View>
-
-              )}
-
-
-
-              <Pressable
-
-  onPress={() => router.push('/profile')}
-
-  style={styles.avatar}
-
->
-
-  <Text style={styles.avatarText}>{avatarLetter}</Text>
-
-</Pressable>
-
-
-
-            </View>
-
-
-
-          </View>
+          <AppHeader />
 
 
 
@@ -1438,7 +1288,7 @@ export default function HomeScreen() {
 
                           <Text style={styles.upcomingText}>
 
-                            {nextAppointment.status}
+                            {nextAppointmentBadgeText}
 
                           </Text>
 
@@ -1596,7 +1446,7 @@ export default function HomeScreen() {
 
               <MobileNavItem
 
-                icon="home"
+                icon="home-outline"
 
                 label="Home"
 
@@ -2360,7 +2210,13 @@ function MobileNavItem({
 
       onPress={onPress}
 
-      style={styles.mobileNavItem}
+      style={[
+
+        styles.mobileNavItem,
+
+        active && styles.mobileNavActiveItem,
+
+      ]}
 
     >
 
@@ -2370,7 +2226,7 @@ function MobileNavItem({
 
         name={icon}
 
-        size={22}
+        size={23}
 
         color={
 
@@ -2810,6 +2666,22 @@ notificationDropdown: {
 
 
 
+  avatarWithPhoto: {
+
+    overflow: 'hidden',
+
+  },
+
+  avatarPhoto: {
+
+    width: 48,
+
+    height: 48,
+
+  },
+
+
+
   avatarText: {
 
     color: COLORS.white,
@@ -3044,6 +2916,8 @@ notificationDropdown: {
 
     alignItems: 'center',
 
+    columnGap: 16,
+
     marginBottom: 15,
 
   },
@@ -3058,6 +2932,8 @@ notificationDropdown: {
 
     fontSize: 21,
 
+    flexShrink: 1,
+
   },
 
 
@@ -3069,6 +2945,12 @@ notificationDropdown: {
     fontFamily: 'Inter_600SemiBold',
 
     fontSize: 14,
+
+    flexShrink: 0,
+
+    paddingVertical: 6,
+
+    paddingHorizontal: 6,
 
   },
 
@@ -3648,7 +3530,7 @@ notificationDropdown: {
 
   mobileNav: {
 
-    height: 70,
+    height: 72,
 
     backgroundColor: COLORS.white,
 
@@ -3662,7 +3544,7 @@ notificationDropdown: {
 
     alignItems: 'center',
 
-    paddingBottom: 4,
+    paddingHorizontal: 20,
 
   },
 
@@ -3670,11 +3552,31 @@ notificationDropdown: {
 
   mobileNavItem: {
 
+    height: 48,
+
+    flex: 1,
+
+    maxWidth: 96,
+
     alignItems: 'center',
 
     justifyContent: 'center',
 
-    minWidth: 70,
+    gap: 4,
+
+    borderRadius: 10,
+
+    paddingVertical: 5,
+
+  },
+
+
+
+  mobileNavActiveItem: {
+
+    backgroundColor: '#E5F2F9',
+
+    borderRadius: 10,
 
   },
 
@@ -3684,11 +3586,9 @@ notificationDropdown: {
 
     color: COLORS.secondary,
 
-    fontFamily: 'Inter_400Regular',
+    fontFamily: 'Inter_500Medium',
 
-    fontSize: 10,
-
-    marginTop: 3,
+    fontSize: 11,
 
   },
 
@@ -3698,7 +3598,7 @@ notificationDropdown: {
 
     color: COLORS.primary,
 
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_700Bold',
 
   },
 

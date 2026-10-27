@@ -3,14 +3,22 @@ const mongoose = require("mongoose");
 
 const Medicine = require("../models/Medicine");
 const MedicineHistory = require("../models/MedicineHistory");
+const User = require("../models/User");
 const auth = require("../middleware/auth");
 const { serializeStock } = require("../services/refillService");
 const {
   markDose,
   buildDoseViews,
   deriveMedicineStatus,
-  getDayRange,
+  getDayRangeForTimeZone,
 } = require("../services/doseService");
+const {
+  syncMedicineNotifications,
+} = require("../services/notificationService");
+const {
+  closeOpenAlertForTaken,
+  processMissedDosesForUser,
+} = require("../services/missedDoseService");
 
 const router = express.Router();
 
@@ -18,8 +26,13 @@ function isValidId(id) {
   return mongoose.Types.ObjectId.isValid(id);
 }
 
-async function loadDoses(userId, medicine, reference) {
-  const { start, end } = getDayRange(reference);
+async function getUserTimeZone(userId) {
+  const user = await User.findById(userId).select("timezone").lean();
+  return user?.timezone || "Asia/Kolkata";
+}
+
+async function loadDoses(userId, medicine, reference, timeZone) {
+  const { start, end } = getDayRangeForTimeZone(reference, timeZone);
   const history = await MedicineHistory.find({
     userId,
     medicineId: medicine._id,
@@ -36,9 +49,12 @@ router.get("/doses/today", auth, async (req, res) => {
     const reference = req.query.date ? new Date(req.query.date) : new Date();
     const when = Number.isNaN(reference.getTime()) ? new Date() : reference;
 
-    const medicines = await Medicine.find({ userId: req.userId });
+    const [medicines, timeZone] = await Promise.all([
+      Medicine.find({ userId: req.userId }),
+      getUserTimeZone(req.userId),
+    ]);
 
-    const { start, end } = getDayRange(when);
+    const { start, end } = getDayRangeForTimeZone(when, timeZone);
     const history = await MedicineHistory.find({
       userId: req.userId,
       scheduledDate: { $gte: start, $lt: end },
@@ -82,10 +98,13 @@ router.get("/:id/doses", auth, async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid medicine id." });
     }
 
-    const medicine = await Medicine.findOne({
-      _id: req.params.id,
-      userId: req.userId,
-    });
+    const [medicine, timeZone] = await Promise.all([
+      Medicine.findOne({
+        _id: req.params.id,
+        userId: req.userId,
+      }),
+      getUserTimeZone(req.userId),
+    ]);
 
     if (!medicine) {
       return res.status(404).json({ success: false, message: "Medicine not found." });
@@ -94,11 +113,12 @@ router.get("/:id/doses", auth, async (req, res) => {
     const reference = req.query.date ? new Date(req.query.date) : new Date();
     const when = Number.isNaN(reference.getTime()) ? new Date() : reference;
 
-    const doses = await loadDoses(req.userId, medicine, when);
+    const range = getDayRangeForTimeZone(when, timeZone);
+    const doses = await loadDoses(req.userId, medicine, when, timeZone);
 
     res.status(200).json({
       success: true,
-      date: getDayRange(when).start,
+      date: range.start,
       medicineStatus: deriveMedicineStatus(doses, medicine.status),
       doses,
       stock: serializeStock(medicine),
@@ -123,6 +143,7 @@ router.post("/:id/doses/:doseId/status", auth, async (req, res) => {
     }
 
     const { status, date } = req.body;
+    const timeZone = await getUserTimeZone(req.userId);
 
     const result = await markDose({
       userId: req.userId,
@@ -130,9 +151,52 @@ router.post("/:id/doses/:doseId/status", auth, async (req, res) => {
       doseId: req.params.doseId,
       status,
       when: date,
+      timeZone,
     });
 
-    const doses = await loadDoses(req.userId, result.medicine, result.history.scheduledDate);
+    if (status === "Taken") {
+      try {
+        await closeOpenAlertForTaken({
+          userId: req.userId,
+          takenAt: result.history.scheduledDate,
+          doseKey: result.history.doseKey,
+        });
+      } catch (alertError) {
+        console.error("Dose alert close error:", alertError);
+      }
+    } else if (status === "Missed" && !result.duplicate) {
+      // The user just asserted a dose was missed: run the missed-dose alert
+      // pipeline right away so threshold reached here emails the caregiver
+      // immediately instead of whenever the next periodic sweep lands.
+      processMissedDosesForUser(req.userId, { now: new Date() })
+        .then((summary) => {
+          console.log("Immediate missed-dose processing:", JSON.stringify(summary));
+        })
+        .catch((processingError) => {
+          console.error(
+            "Immediate missed-dose processing error:",
+            processingError && processingError.message
+              ? processingError.message
+              : processingError
+          );
+        });
+    }
+
+    const doses = await loadDoses(
+      req.userId,
+      result.medicine,
+      result.history.scheduledDate,
+      timeZone
+    );
+
+    try {
+      await syncMedicineNotifications(req.userId, { timeZone });
+    } catch (notificationError) {
+      console.error(
+        "Dose notification sync error:",
+        notificationError
+      );
+    }
 
     res.status(200).json({
       success: true,

@@ -7,11 +7,9 @@
     "icon": "./assets/images/icon.png",
     "scheme": "healthsaathimobile",
     "userInterfaceStyle": "automatic",
-
     "ios": {
       "icon": "./assets/expo.icon"
     },
-
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -25,12 +23,10 @@
         "android.permission.SCHEDULE_EXACT_ALARM"
       ]
     },
-
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -55,14 +51,28 @@
         {
           "defaultChannel": "medicine-reminders-v2"
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Health-Saathi to find hospitals near you."
+        }
+      ],
+      "@maplibre/maplibre-react-native"
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-
     "extra": {
       "router": {},
       "eas": {

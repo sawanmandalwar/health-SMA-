@@ -2,6 +2,48 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
+## Backend + device testing (Health-Saathi)
+
+1. **Start the backend** (Node/Express + MongoDB Atlas, lives in `Backend/`):
+
+   ```bash
+   cd Backend
+   npm install          # first time only
+   copy .env.example .env   # then edit Backend/.env with your real values
+   npm run dev          # or: node server.js
+   ```
+
+   Secrets live only in `Backend/.env` (git-ignored). See `Backend/.env.example` for the required keys.
+
+2. **Point the app at the backend**: set `EXPO_PUBLIC_API_URL` in the root `.env`
+   and restart Metro with a cleared cache:
+
+   ```bash
+   # .env
+   EXPO_PUBLIC_API_URL=http://<your-PC-LAN-IP>:5000
+   ```
+
+   ```bash
+   npx expo start --clear
+   ```
+
+   Use the PC's LAN IP (run `ipconfig` to find it). Allow Node.js through the
+   Windows Firewall for port 5000, or the phone — even on the same Wi-Fi — will
+   fail to connect. A secure (`https://`) tunnel URL you control also works.
+   The API URL is never hard-coded in the app; without `.env` the app fails
+   loudly with a config error instead of silently hitting a stale URL.
+
+3. **Build to your Android device** (OCR + medicine reminders need native
+   modules, so Expo Go is not enough):
+
+   ```bash
+   npx expo run:android
+   ```
+
+   The dev build includes the prescription OCR module
+   (`@zhanziyang/expo-text-extractor`, Android only) and clear-HTTP
+   (`usesCleartextTraffic`) so the LAN backend URL works over plain `http://`.
+
 ## Get started
 
 1. Install dependencies

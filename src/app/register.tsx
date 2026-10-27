@@ -2,6 +2,7 @@
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import { apiFetch, getApiErrorMessage, parseJson } from '../services/api';
+import { getDeviceTimeZone } from '../services/timezoneService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
@@ -96,6 +97,7 @@ export default function RegisterScreen() {
           email: email.trim().toLowerCase(),
           password: password,
           phone: mobile,
+          timezone: getDeviceTimeZone(),
         }),
       });
 
@@ -140,7 +142,7 @@ router.replace({
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
           contentContainerStyle={[

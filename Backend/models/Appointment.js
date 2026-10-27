@@ -54,6 +54,47 @@ const appointmentSchema = new mongoose.Schema(
       enum: ["Upcoming", "Previous"],
       default: "Upcoming",
     },
+
+    // Parsed UTC instant of date + time in the user's timezone. Cached on
+    // the document so the missed-appointment sweep does not re-parse free
+    // text date/time strings on every run.
+    appointmentAt: {
+      type: Date,
+      default: null,
+    },
+
+    appointmentAtFailed: {
+      type: Boolean,
+      default: false,
+    },
+
+    // Set (with status moved to "Previous") once the appointment time has
+    // passed the grace window without the user completing it.
+    missedAt: {
+      type: Date,
+      default: null,
+    },
+
+    // Caregiver email delivery state for the miss.
+    caregiverNotified: {
+      type: Boolean,
+      default: false,
+    },
+
+    caregiverNotifySkipped: {
+      type: Boolean,
+      default: false,
+    },
+
+    caregiverNotifyAttempts: {
+      type: Number,
+      default: 0,
+    },
+
+    caregiverNotifyLastAttemptAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

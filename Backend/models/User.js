@@ -26,6 +26,20 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+
+    timezone: {
+      type: String,
+      default: "Asia/Kolkata",
+      trim: true,
+      maxlength: 64,
+    },
+
+    // Relative URL of the profile photo served by /uploads.
+    photoUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
   },
   {
     timestamps: true,

@@ -1,6 +1,9 @@
 import { Platform } from 'react-native';
 import { isRunningInExpoGo } from 'expo';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { apiFetch } from './api';
 
 type NotificationsModule = typeof import('expo-notifications');
 
@@ -162,6 +165,170 @@ export function requestNotificationPermission(): Promise<boolean> {
   return ensureNotificationPermission();
 }
 
+const PUSH_TOKEN_STORAGE_KEY = 'expoPushToken';
+
+let pushRegistrationPromise: Promise<boolean> | null = null;
+let lastPushRegistrationKey = '';
+let lastPushAttemptKey = '';
+
+function getExpoProjectId(): string | null {
+  const extra = Constants.expoConfig?.extra as
+    | { eas?: { projectId?: string } }
+    | undefined;
+  const easConfig = (
+    Constants as typeof Constants & {
+      easConfig?: { projectId?: string };
+    }
+  ).easConfig;
+
+  const projectId = extra?.eas?.projectId || easConfig?.projectId;
+  return typeof projectId === 'string' && projectId.trim()
+    ? projectId.trim()
+    : null;
+}
+
+// Register the device's Expo push token with the backend. Remote push is only
+// available in a development/standalone build on a physical device, and only
+// after notification permission has been granted.
+export async function registerPushTokenWithBackend(
+  authToken: string,
+): Promise<boolean> {
+  const isNativePlatform =
+    Platform.OS === 'android' || Platform.OS === 'ios';
+
+  if (!authToken || !isNativePlatform) return false;
+  if (lastPushRegistrationKey === authToken) return true;
+  if (lastPushAttemptKey === authToken) return false;
+
+  if (pushRegistrationPromise) return pushRegistrationPromise;
+
+  pushRegistrationPromise = (async () => {
+    try {
+      const Notifications = await getNotifications();
+      if (!Notifications) {
+        lastPushAttemptKey = authToken;
+        return false;
+      }
+
+      if (isExpoGo) {
+        console.log(
+          '[push] Remote push requires a development build; skipping registration in Expo Go.',
+        );
+        lastPushAttemptKey = authToken;
+        return false;
+      }
+
+      const Device = await import('expo-device');
+      if (!Device.isDevice) {
+        console.log(
+          '[push] Expo push tokens require a physical device; skipping registration.',
+        );
+        lastPushAttemptKey = authToken;
+        return false;
+      }
+
+      const granted = await ensureNotificationPermission();
+      if (!granted) {
+        lastPushAttemptKey = authToken;
+        return false;
+      }
+
+      const projectId = getExpoProjectId();
+      if (!projectId) {
+        console.log(
+          '[push] Missing EAS projectId; cannot request an Expo push token.',
+        );
+        lastPushAttemptKey = authToken;
+        return false;
+      }
+
+      const tokenResult = await Notifications.getExpoPushTokenAsync({
+        projectId,
+      });
+      const pushToken =
+        tokenResult && typeof tokenResult.data === 'string'
+          ? tokenResult.data.trim()
+          : '';
+
+      if (!pushToken) return false;
+
+      const response = await apiFetch('/api/notifications/push-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          token: pushToken,
+          platform: Platform.OS,
+        }),
+      });
+
+      if (!response.ok) {
+        console.log(
+          '[push] Backend rejected Expo push token:',
+          response.status,
+        );
+        return false;
+      }
+
+      await AsyncStorage.setItem(PUSH_TOKEN_STORAGE_KEY, pushToken);
+      lastPushRegistrationKey = authToken;
+      lastPushAttemptKey = '';
+
+      console.log('[push] Expo push token registered.');
+      return true;
+    } catch (error) {
+      console.log(
+        '[push] Unable to register Expo push token:',
+        error instanceof Error ? error.message : 'unknown error',
+      );
+      return false;
+    } finally {
+      pushRegistrationPromise = null;
+    }
+  })();
+
+  return pushRegistrationPromise;
+}
+
+// Best-effort removal so a signed-out account does not keep receiving pushes on
+// this device. The token itself is never logged.
+export async function deactivatePushTokenWithBackend(
+  authToken: string,
+): Promise<boolean> {
+  const isNativePlatform =
+    Platform.OS === 'android' || Platform.OS === 'ios';
+
+  if (!authToken || !isNativePlatform) return false;
+
+  try {
+    const pushToken = await AsyncStorage.getItem(PUSH_TOKEN_STORAGE_KEY);
+    if (!pushToken) return false;
+
+    const response = await apiFetch('/api/notifications/push-token', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ token: pushToken }),
+    });
+
+    await AsyncStorage.removeItem(PUSH_TOKEN_STORAGE_KEY);
+    lastPushRegistrationKey = '';
+    lastPushAttemptKey = '';
+
+    return response.ok;
+  } catch (error) {
+    console.log(
+      '[push] Unable to deactivate Expo push token:',
+      error instanceof Error ? error.message : 'unknown error',
+    );
+    return false;
+  }
+}
+
 // True when a reminder time can be parsed. Used by the UI to block invalid
 // values before saving so a reminder is never silently skipped.
 export function isValidMedicineTime(time: string): boolean {
@@ -224,41 +391,29 @@ function parseDateOnly(value?: string): Date | null {
   }
 }
 
-// A course is active if today is on/after its start date and on/before its
-// end date. Missing dates mean "no bound".
-function isMedicineActiveToday(
-  medicine: MedicineReminder,
-  reference = new Date()
-): boolean {
-  const start = parseDateOnly(medicine.startDate);
-  const end = parseDateOnly(medicine.endDate);
-
-  const today = new Date(
-    reference.getFullYear(),
-    reference.getMonth(),
-    reference.getDate()
-  ).getTime();
-
-  if (start) {
-    const startDay = new Date(
-      start.getFullYear(),
-      start.getMonth(),
-      start.getDate()
-    ).getTime();
-    if (today < startDay) return false;
-  }
-
-  if (end) {
-    const endDay = new Date(
-      end.getFullYear(),
-      end.getMonth(),
-      end.getDate()
-    ).getTime();
-    if (today > endDay) return false;
-  }
-
-  return true;
+function startOfLocalDay(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
 }
+
+function addLocalDays(value: Date, days: number): Date {
+  return new Date(
+    value.getFullYear(),
+    value.getMonth(),
+    value.getDate() + days
+  );
+}
+
+function formatDayKey(value: Date): string {
+  return [
+    value.getFullYear(),
+    String(value.getMonth() + 1).padStart(2, '0'),
+    String(value.getDate()).padStart(2, '0'),
+  ].join('');
+}
+
+// Date-bounded courses are scheduled as individual one-time notifications so
+// the reminder starts on the prescribed day and stops after the course ends.
+const REMINDER_HORIZON_DAYS = 60;
 
 interface MedicineReminderSpec {
   identifier: string;
@@ -270,6 +425,7 @@ interface MedicineReminderSpec {
   hour: number;
   minute: number;
   nextOccurrence: Date;
+  triggerDate?: Date;
   title: string;
   body: string;
 }
@@ -311,20 +467,13 @@ function computeNextOccurrence(
   return next;
 }
 
-// Build one reminder spec per scheduled dose. Invalid times are skipped and
-// courses outside their start/end window are left unscheduled — the user's
-// prescribed schedule is never silently altered.
+// Build one reminder spec per scheduled dose. Date-bounded courses use a
+// separate one-time notification for every prescribed day, while open-ended
+// courses keep a daily repeating notification.
 function buildMedicineReminderSpecs(
   medicine: MedicineReminder
 ): MedicineReminderSpec[] {
   if (!medicine?._id) {
-    return [];
-  }
-
-  if (!isMedicineActiveToday(medicine)) {
-    console.log(
-      `Medicine ${medicine._id}: outside its start/end date window; no reminders scheduled.`
-    );
     return [];
   }
 
@@ -334,6 +483,33 @@ function buildMedicineReminderSpecs(
       : medicine.time
       ? [{ id: 'default', time: medicine.time }]
       : [];
+
+  if (schedules.length === 0) {
+    return [];
+  }
+
+  const now = new Date();
+  const today = startOfLocalDay(now);
+  const start = parseDateOnly(medicine.startDate);
+  const end = parseDateOnly(medicine.endDate);
+  const hasDateWindow = Boolean(start || end);
+
+  if (end && end.getTime() < today.getTime()) {
+    console.log(
+      `Medicine ${medicine._id}: course ended on ${medicine.endDate}; no reminders scheduled.`
+    );
+    return [];
+  }
+
+  const firstDay =
+    start && start.getTime() > today.getTime() ? start : today;
+  const lastAllowedDay = addLocalDays(firstDay, REMINDER_HORIZON_DAYS - 1);
+  const lastDay =
+    end && end.getTime() < lastAllowedDay.getTime() ? end : lastAllowedDay;
+
+  if (firstDay.getTime() > lastDay.getTime()) {
+    return [];
+  }
 
   const specs: MedicineReminderSpec[] = [];
   const usedDoseIds = new Set<string>();
@@ -351,8 +527,6 @@ function buildMedicineReminderSpecs(
       continue;
     }
 
-    // Guarantee a unique id even if the backend ever returns duplicate or
-    // missing dose ids, so every dose keeps its own notification.
     const baseDoseId = schedule.id || 'default';
     let doseId = baseDoseId;
     let suffix = 1;
@@ -370,27 +544,82 @@ function buildMedicineReminderSpecs(
     const body = `Time to take ${quantityPrefix}${medicine.dosage}${
       medicine.timing ? ` — ${medicine.timing}` : ''
     }.`;
-
-    specs.push({
-      identifier: buildReminderIdentifier('med', medicine._id, doseId),
-      key: `${medicine._id}::${doseId}`,
-      fingerprint: JSON.stringify({
-        time: schedule.time,
-        hour: parsed.hour,
-        minute: parsed.minute,
-        quantity: schedule.quantity ?? 1,
-        title,
-        body,
-      }),
-      medicineId: medicine._id,
-      doseId,
+    const baseFingerprint = {
       time: schedule.time,
       hour: parsed.hour,
       minute: parsed.minute,
-      nextOccurrence: computeNextOccurrence(parsed.hour, parsed.minute),
+      quantity: schedule.quantity ?? 1,
       title,
       body,
-    });
+    };
+
+    if (!hasDateWindow) {
+      specs.push({
+        identifier: buildReminderIdentifier(
+          'med',
+          medicine._id,
+          doseId,
+          'daily'
+        ),
+        key: `${medicine._id}::${doseId}::daily`,
+        fingerprint: JSON.stringify(baseFingerprint),
+        medicineId: medicine._id,
+        doseId,
+        time: schedule.time,
+        hour: parsed.hour,
+        minute: parsed.minute,
+        nextOccurrence: computeNextOccurrence(parsed.hour, parsed.minute),
+        title,
+        body,
+      });
+      continue;
+    }
+
+    for (
+      let day = firstDay;
+      day.getTime() <= lastDay.getTime();
+      day = addLocalDays(day, 1)
+    ) {
+      const triggerDate = new Date(
+        day.getFullYear(),
+        day.getMonth(),
+        day.getDate(),
+        parsed.hour,
+        parsed.minute,
+        0,
+        0
+      );
+
+      if (triggerDate.getTime() <= now.getTime()) {
+        continue;
+      }
+
+      const dayKey = formatDayKey(day);
+
+      specs.push({
+        identifier: buildReminderIdentifier(
+          'med',
+          medicine._id,
+          doseId,
+          dayKey,
+          `${parsed.hour}${String(parsed.minute).padStart(2, '0')}`
+        ),
+        key: `${medicine._id}::${doseId}::${dayKey}`,
+        fingerprint: JSON.stringify({
+          ...baseFingerprint,
+          triggerDate: triggerDate.toISOString(),
+        }),
+        medicineId: medicine._id,
+        doseId,
+        time: schedule.time,
+        hour: parsed.hour,
+        minute: parsed.minute,
+        nextOccurrence: triggerDate,
+        triggerDate,
+        title,
+        body,
+      });
+    }
   }
 
   return specs;
@@ -413,6 +642,26 @@ async function scheduleMedicineSpec(
     return { identifier: spec.identifier, time: spec.time, ok: false };
   }
 
+  const channelId =
+    Platform.OS === 'android' ? MEDICINE_CHANNEL_ID : undefined;
+
+  type TriggerInput = Parameters<
+    NotificationsModule['scheduleNotificationAsync']
+  >[0]['trigger'];
+
+  const trigger: TriggerInput = spec.triggerDate
+    ? {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: spec.triggerDate,
+        channelId,
+      }
+    : {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: spec.hour,
+        minute: spec.minute,
+        channelId,
+      };
+
   try {
     await Notifications.scheduleNotificationAsync({
       identifier: spec.identifier,
@@ -428,12 +677,7 @@ async function scheduleMedicineSpec(
           type: 'medicine-reminder',
         },
       },
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: spec.hour,
-        minute: spec.minute,
-        channelId: Platform.OS === 'android' ? MEDICINE_CHANNEL_ID : undefined,
-      },
+      trigger,
     });
 
     console.log(
@@ -463,7 +707,10 @@ async function scheduleMedicineSpec(
 //
 // Matching is done by the native notification identifier, which we control.
 // That keeps every dose independent and makes reopening the app idempotent.
-async function reconcileMedicineReminders(medicines: MedicineReminder[]) {
+async function reconcileMedicineReminders(
+  medicines: MedicineReminder[],
+  partial = false
+) {
   const Notifications = await getNotifications();
   if (!Notifications) {
     console.log(
@@ -493,13 +740,24 @@ async function reconcileMedicineReminders(medicines: MedicineReminder[]) {
     }
   }
 
+  const managedMedicineIds = new Set(
+    medicines.map((medicine) => String(medicine._id))
+  );
+  const isManaged = (medicineId: unknown) =>
+    !partial ||
+    (typeof medicineId === 'string' &&
+      managedMedicineIds.has(String(medicineId)));
+
   console.log(
     `Medicine reminders: ${desired.size} wanted across ${medicines.length} medicine(s).`
   );
 
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
 
-  const existing = new Map<string, { fingerprint: string }>();
+  const existing = new Map<
+    string,
+    { fingerprint: string; medicineId: string }
+  >();
   const legacyIdentifiers: string[] = [];
 
   for (const notification of scheduled) {
@@ -507,14 +765,19 @@ async function reconcileMedicineReminders(medicines: MedicineReminder[]) {
     if (data.type !== 'medicine-reminder') continue;
 
     const key = typeof data.reminderKey === 'string' ? data.reminderKey : null;
+    const medicineId =
+      typeof data.medicineId === 'string' ? data.medicineId : '';
 
     if (!key) {
-      legacyIdentifiers.push(notification.identifier);
+      if (isManaged(medicineId)) {
+        legacyIdentifiers.push(notification.identifier);
+      }
       continue;
     }
 
     existing.set(notification.identifier, {
       fingerprint: typeof data.fingerprint === 'string' ? data.fingerprint : '',
+      medicineId,
     });
   }
 
@@ -529,7 +792,11 @@ async function reconcileMedicineReminders(medicines: MedicineReminder[]) {
   // Cancel anything that is no longer wanted or whose details changed.
   for (const [identifier, entry] of existing) {
     const wanted = desired.get(identifier);
-    if (!wanted || wanted.fingerprint !== entry.fingerprint) {
+    const shouldCancel =
+      (!wanted && isManaged(entry.medicineId)) ||
+      (wanted && wanted.fingerprint !== entry.fingerprint);
+
+    if (shouldCancel) {
       cancelPromises.push(
         Notifications.cancelScheduledNotificationAsync(identifier)
       );
@@ -567,15 +834,19 @@ async function reconcileMedicineReminders(medicines: MedicineReminder[]) {
 // latest data is reconciled even when requests arrive during an active sync.
 let medicineSyncInFlight: Promise<void> | null = null;
 let pendingMedicines: MedicineReminder[] | null = null;
+let pendingPartial = false;
 
 // Reconcile medicine reminders without blocking the UI. Safe to call on every
 // screen load and after every save — unchanged doses are never recreated.
+// Partial syncs (after saving scanned medicines) leave other medicines alone.
 export function syncMedicineReminders(
-  medicines: MedicineReminder[]
+  medicines: MedicineReminder[],
+  options?: { partial?: boolean }
 ): Promise<void> {
   if (Platform.OS === 'web') return Promise.resolve();
 
   pendingMedicines = medicines;
+  pendingPartial = Boolean(options?.partial);
 
   if (medicineSyncInFlight) {
     return medicineSyncInFlight;
@@ -585,10 +856,12 @@ export function syncMedicineReminders(
     try {
       while (pendingMedicines) {
         const list = pendingMedicines;
+        const partial = pendingPartial;
         pendingMedicines = null;
+        pendingPartial = false;
 
         try {
-          await reconcileMedicineReminders(list);
+          await reconcileMedicineReminders(list, partial);
         } catch (error) {
           console.log('Medicine reminder sync failed:', error);
         }

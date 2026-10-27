@@ -2,6 +2,8 @@ import React, { useEffect, useState , useCallback } from 'react';
 import { useFocusEffect , useRouter } from 'expo-router';
 import { apiFetch, parseJson } from '../services/api';
 
+import { useHeaderUser } from '../hooks/useHeaderUser';
+
 import {
   View,
   Text,
@@ -106,6 +108,9 @@ export default function HistoryScreen() {
 
   const { width } =
     useWindowDimensions();
+
+  // Header user (shared hook: cache instantly + fresh on focus)
+  const { displayName } = useHeaderUser();
 
 
   // ====================================================
@@ -463,7 +468,7 @@ export default function HistoryScreen() {
             styles.welcome
           }
         >
-          Welcome back, sawan
+          Welcome back, {displayName}
         </Text>
 
 

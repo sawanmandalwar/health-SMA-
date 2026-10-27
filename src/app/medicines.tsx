@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 
 import {
   View,
@@ -12,12 +12,16 @@ import {
   Alert,
 } from 'react-native';
 
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { Ionicons } from '@expo/vector-icons';
 
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { apiFetch, parseJson } from '../services/api';
+
+import AppHeader from '../components/AppHeader';
 
 import {
   Poppins_400Regular,
@@ -422,11 +426,11 @@ export default function MedicinesScreen() {
     }
   }, [router]);
 
-  useEffect(() => {
-    (async () => {
-      await loadMedicines();
-    })();
-  }, [loadMedicines]);
+  useFocusEffect(
+    useCallback(() => {
+      loadMedicines();
+    }, [loadMedicines])
+  );
 
 
   // ====================================================
@@ -1164,7 +1168,7 @@ const deleteMedicine = (id: string) => {
             }
           >
             {medicine.time}
-            {' · '}
+            {' Â· '}
             {medicine.timing}
           </Text>
 
@@ -1192,7 +1196,7 @@ const deleteMedicine = (id: string) => {
                       {dose.time}
 
                       {dose.quantity > 1
-                        ? ` · ${dose.quantity} doses`
+                        ? ` Â· ${dose.quantity} doses`
                         : ''}
                     </Text>
 
@@ -1295,7 +1299,7 @@ const deleteMedicine = (id: string) => {
                 {' '}
                 {medicine.unit || 'units'}
                 {medicine.estimatedRunOutDate
-                  ? ` · runs out ${formatRunOutDate(
+                  ? ` Â· runs out ${formatRunOutDate(
                       medicine.estimatedRunOutDate
                     )}`
                   : ''}
@@ -1464,83 +1468,16 @@ const deleteMedicine = (id: string) => {
 
   return (
 
-    <View
-      style={
-        styles.screen
-      }
+    <SafeAreaView
+      style={styles.screen}
+      edges={['top', 'bottom']}
     >
 
       {/* ================================================= */}
-      {/* HEADER */}
+      {/* HEADER (shared across all screens) */}
       {/* ================================================= */}
 
-      <View
-        style={[
-          styles.header,
-
-          isMobile &&
-            styles.headerMobile,
-        ]}
-      >
-
-        <Text
-          style={
-            styles.welcome
-          }
-        >
-          Welcome back, sawan
-        </Text>
-
-
-        <View
-          style={
-            styles.headerRight
-          }
-        >
-
-          <View
-            style={
-              styles.notification
-            }
-          >
-
-            <Ionicons
-              name="notifications-outline"
-              size={25}
-              color={
-                COLORS.mainText
-              }
-            />
-
-            <View
-              style={
-                styles.notificationDot
-              }
-            />
-
-          </View>
-
-
-          <View
-            style={
-              styles.avatar
-            }
-          >
-
-            <Text
-              style={
-                styles.avatarText
-              }
-            >
-              S
-            </Text>
-
-          </View>
-
-        </View>
-
-      </View>
-
+      <AppHeader />
 
       {/* ================================================= */}
       {/* CONTENT */}
@@ -1568,9 +1505,12 @@ const deleteMedicine = (id: string) => {
         {/* ================================================= */}
 
         <View
-          style={
-            styles.titleSection
-          }
+          style={[
+            styles.titleSection,
+
+            isMobile &&
+              styles.titleSectionMobile,
+          ]}
         >
 
           <View>
@@ -2713,7 +2653,7 @@ const deleteMedicine = (id: string) => {
                   }
                 >
                   {refillMedicine
-                    ? `${refillMedicine.name} · ${
+                    ? `${refillMedicine.name} Â· ${
                         refillMedicine.remainingQuantity ?? 0
                       } ${refillMedicine.unit || 'units'} in stock`
                     : ''}
@@ -2849,13 +2789,11 @@ const deleteMedicine = (id: string) => {
 
 
       {/* ================================================= */}
-      {/* BOTTOM NAVIGATION */}
+      {/* BOTTOM NAVIGATION (same design as Appointments) */}
       {/* ================================================= */}
 
       <View
-        style={
-          styles.bottomNav
-        }
+        style={styles.bottomNav}
       >
 
         <Pressable
@@ -2897,7 +2835,7 @@ const deleteMedicine = (id: string) => {
         >
 
           <Ionicons
-            name="medical"
+            name="medical-outline"
             size={23}
             color={
               COLORS.primaryBlue
@@ -2979,7 +2917,7 @@ const deleteMedicine = (id: string) => {
 
       </View>
 
-    </View>
+    </SafeAreaView>
 
   );
 
@@ -3055,31 +2993,165 @@ const styles =
 
     alignItems: 'center',
 
-    gap: 18,
-  },
+    gap: 12,
 
-
-  notification: {
     position: 'relative',
+
+    zIndex: 9999,
   },
 
 
-  notificationDot: {
+  notificationBadge: {
     position: 'absolute',
 
-    width: 7,
+    top: 2,
 
-    height: 7,
+    right: 1,
 
-    borderRadius: 4,
+    minWidth: 17,
 
-    backgroundColor:
-      COLORS.dangerRed,
+    height: 17,
+
+    paddingHorizontal: 4,
+
+    borderRadius: 9,
+
+    backgroundColor: COLORS.dangerRed,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+  },
+
+
+  notificationBadgeText: {
+    color: COLORS.white,
+
+    fontFamily: 'Inter_700Bold',
+
+    fontSize: 9,
+  },
+
+
+  notificationDropdown: {
+    position: 'absolute',
+
+    top: 50,
 
     right: 0,
 
-    top: 0,
+    width: 360,
+
+    maxWidth: 360,
+
+    backgroundColor: COLORS.white,
+
+    borderWidth: 1,
+
+    borderColor: COLORS.border,
+
+    borderRadius: 14,
+
+    padding: 20,
+
+    zIndex: 99999,
+
+    elevation: 12,
+
+    shadowColor: '#000000',
+
+    shadowOffset: { width: 0, height: 5 },
+
+    shadowOpacity: 0.15,
+
+    shadowRadius: 12,
   },
+
+
+  notificationDropdownHeader: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'space-between',
+
+    paddingBottom: 12,
+
+    borderBottomWidth: 1,
+
+    borderBottomColor: COLORS.border,
+  },
+
+
+  notificationDropdownTitle: {
+    color: COLORS.mainText,
+
+    fontFamily: 'Poppins_600SemiBold',
+
+    fontSize: 17,
+  },
+
+
+  notificationEmptyState: {
+    alignItems: 'center',
+
+    paddingVertical: 24,
+
+    paddingHorizontal: 8,
+  },
+
+
+  notificationEmptyTitle: {
+    color: COLORS.mainText,
+
+    fontFamily: 'Inter_600SemiBold',
+
+    fontSize: 14,
+
+    marginTop: 10,
+  },
+
+
+  notificationEmptyText: {
+    color: COLORS.secondaryText,
+
+    fontFamily: 'Inter_400Regular',
+
+    fontSize: 12,
+
+    lineHeight: 18,
+
+    textAlign: 'center',
+
+    marginTop: 5,
+  },
+
+
+  notificationList: { maxHeight: 360, marginTop: 4 },
+
+  notificationItem: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 13, paddingHorizontal: 5, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 10 },
+
+  notificationUnread: { backgroundColor: '#F2F8FC' },
+
+  notificationItemIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.lightBlue, alignItems: 'center', justifyContent: 'center' },
+
+  notificationItemContent: { flex: 1, minWidth: 0 },
+
+  notificationItemTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+
+  notificationItemTitle: { flex: 1, color: COLORS.mainText, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+
+  notificationItemMessage: { color: COLORS.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17, marginTop: 4 },
+
+  notificationItemDate: { color: COLORS.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 10, marginTop: 6 },
+
+  notificationMarkRead: { color: COLORS.primaryBlue, fontFamily: 'Inter_500Medium', fontSize: 10, marginTop: 4 },
+
+  notificationUnreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.primaryBlue },
+
+  notificationRetryButton: { marginTop: 10, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: COLORS.lightBlue },
+
+  notificationRetryText: { color: COLORS.primaryBlue, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
 
 
   avatar: {
@@ -3095,6 +3167,17 @@ const styles =
     alignItems: 'center',
 
     justifyContent: 'center',
+  },
+
+
+  avatarWithPhoto: {
+    overflow: 'hidden',
+  },
+
+  avatarPhoto: {
+    width: 48,
+
+    height: 48,
   },
 
 
@@ -3142,6 +3225,15 @@ const styles =
     marginBottom: 20,
 
     gap: 15,
+  },
+
+
+  titleSectionMobile: {
+    flexDirection: 'column',
+
+    alignItems: 'flex-start',
+
+    gap: 18,
   },
 
 
@@ -3195,10 +3287,14 @@ const styles =
     justifyContent: 'center',
 
     gap: 7,
+
+    flexShrink: 0,
   },
 
 
   addButtonMobile: {
+    width: '100%',
+
     minHeight: 46,
 
     paddingHorizontal: 13,
@@ -3945,7 +4041,7 @@ const styles =
   // ====================================================
 
   bottomNav: {
-    height: 74,
+    height: 72,
 
     backgroundColor:
       COLORS.white,
@@ -3961,28 +4057,32 @@ const styles =
 
     justifyContent:
       'space-around',
+
+    paddingHorizontal: 20,
   },
 
 
   bottomTab: {
-    minWidth: 75,
+    height: 48,
 
-    minHeight: 56,
+    flex: 1,
+
+    maxWidth: 96,
 
     alignItems: 'center',
 
     justifyContent: 'center',
 
-    gap: 2,
+    gap: 4,
+
+    borderRadius: 10,
+
+    paddingVertical: 5,
   },
 
 
   bottomTabActive: {
-    transform: [
-      {
-        scale: 1.05,
-      },
-    ],
+    backgroundColor: '#E5F2F9',
   },
 
 
@@ -4002,7 +4102,7 @@ const styles =
       COLORS.primaryBlue,
 
     fontFamily:
-      'Inter_600SemiBold',
+      'Inter_700Bold',
   },
 
 

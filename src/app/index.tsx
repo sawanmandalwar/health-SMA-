@@ -15,6 +15,37 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch, getApiErrorMessage, parseJson } from '../services/api';
+import { getDeviceTimeZone } from '../services/timezoneService';
+
+function getLoginFailureMessage(
+  status: number,
+  serverMessage?: string,
+): string {
+  const message =
+    typeof serverMessage === 'string' ? serverMessage.trim() : '';
+
+  if (status === 401) {
+    return message || 'Invalid email or password. Please check your credentials and try again.';
+  }
+
+  if (status === 400) {
+    return message || 'Please check your email and password and try again.';
+  }
+
+  if (status === 403) {
+    return message || 'This account is not allowed to sign in. Please contact support.';
+  }
+
+  if (status === 404) {
+    return 'The login service could not be found. Please check the app configuration.';
+  }
+
+  if (status >= 500) {
+    return 'The server is temporarily unavailable. Please try again in a moment.';
+  }
+
+  return message || 'Login failed. Please try again.';
+}
 
 export default function LoginScreen() {
   const { width } = useWindowDimensions();
@@ -66,6 +97,7 @@ export default function LoginScreen() {
         body: JSON.stringify({
           email: email.trim(),
           password,
+          timezone: getDeviceTimeZone(),
         }),
       });
 
@@ -75,7 +107,12 @@ export default function LoginScreen() {
 
       if (!response.ok) {
         console.log('[login] server rejected the request:', response.status);
-        setError(data.message || 'Login failed. Please check your details.');
+        setError(getLoginFailureMessage(response.status, data?.message));
+        return;
+      }
+
+      if (!data?.token || !data?.user) {
+        setError('The server returned an unexpected response. Please try again.');
         return;
       }
 
@@ -104,7 +141,7 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
           contentContainerStyle={[

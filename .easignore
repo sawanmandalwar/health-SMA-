@@ -1,0 +1,10 @@
+# Mirrors .gitignore for EAS Build, but keeps .env files so EAS can read
+# GOOGLE_MAPS_ANDROID_API_KEY during native generation (react-native-maps
+# config plugin). Never put real secrets anywhere except .env.
+Backend
+node_modules
+.expo
+dist
+web-build
+*.log
+.DS_Store

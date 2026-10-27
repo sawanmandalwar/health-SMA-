@@ -10,6 +10,9 @@ const {
   buildDoseViews,
   deriveMedicineStatus,
 } = require("../services/doseService");
+const {
+  syncMedicineNotifications,
+} = require("../services/notificationService");
 
 const router = express.Router();
 
@@ -141,21 +144,37 @@ router.get("/", authMiddleware, async (req, res) => {
     const todayStart = startOfDay(now);
     const todayEnd = endOfDay(now);
 
-    const [user, medicines, history, appointments, unreadNotifications] =
-      await Promise.all([
-        User.findById(userId).select("-password"),
-        Medicine.find({ userId }).sort({ createdAt: -1 }),
-        MedicineHistory.find({ userId }).sort({
-          scheduledDate: -1,
-          createdAt: -1,
-        }),
-        Appointment.find({ userId }).sort({ createdAt: -1 }),
-        Notification.countDocuments({ userId, isRead: false }),
-      ]);
+    const [user, medicines, history, appointments] = await Promise.all([
+      User.findById(userId).select("-password"),
+      Medicine.find({ userId }).sort({ createdAt: -1 }),
+      MedicineHistory.find({ userId }).sort({
+        scheduledDate: -1,
+        createdAt: -1,
+      }),
+      Appointment.find({ userId }).sort({ createdAt: -1 }),
+    ]);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
+
+    try {
+      await syncMedicineNotifications(userId, {
+        medicines,
+        history,
+        timeZone: user.timezone,
+      });
+    } catch (notificationError) {
+      console.error(
+        "Dashboard medicine notification sync error:",
+        notificationError
+      );
+    }
+
+    const unreadNotifications = await Notification.countDocuments({
+      userId,
+      isRead: false,
+    });
 
     // ------------------------------------------
     // TODAY'S MEDICINES + STATUS
@@ -291,6 +310,7 @@ router.get("/", authMiddleware, async (req, res) => {
         name: user.name,
         email: user.email,
         phone: user.phone,
+        photoUrl: user.photoUrl || "",
       },
       today: todayStart.toISOString().slice(0, 10),
       stats: {

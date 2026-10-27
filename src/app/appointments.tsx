@@ -15,6 +15,8 @@ import {
   Platform,
 } from 'react-native';
 
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Ionicons } from '@expo/vector-icons';
 
 import {
@@ -41,8 +43,211 @@ import {
   cancelAppointmentRemindersForAppointment,
   syncAppointmentReminders,
   requestNotificationPermission,
+  isValidMedicineTime,
+  parseAppointmentDateTime,
 } from '../services/notificationService';
 import { apiFetch, parseJson } from '../services/api';
+
+import AppHeader from '../components/AppHeader';
+
+import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+
+// The native date/time picker only ships for iOS/Android. On web the raw
+// import would fail with "TurboModuleRegistry.getEnforcing(...)", so the
+// module is required lazily and the form falls back to text inputs.
+type NativeDateTimePickerProps = {
+  value: Date;
+  mode: 'date' | 'time';
+  display?: 'default' | 'spinner';
+  is24Hour?: boolean;
+  maximumDate?: Date;
+  onChange: (event: DateTimePickerEvent, selected?: Date) => void;
+};
+
+let NativeDateTimePicker: React.ComponentType<NativeDateTimePickerProps> | null =
+  null;
+
+if (Platform.OS !== 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  NativeDateTimePicker = require('@react-native-community/datetimepicker')
+    .default as React.ComponentType<NativeDateTimePickerProps>;
+}
+
+const isDateTimePickerSupported = NativeDateTimePicker !== null;
+
+// ====================================================
+// DYNAMIC BADGE HELPERS (module scope, no per-render cost)
+// ====================================================
+
+// Resolve an appointment's Date; returns null when the stored
+// text cannot be understood (never throws).
+function getAppointmentDateTime(
+  appointment: Appointment
+): Date | null {
+  try {
+    return parseAppointmentDateTime(
+      appointment.date,
+      appointment.time
+    );
+  } catch {
+    return null;
+  }
+}
+
+// Whole calendar days between today and the appointment ("14 October
+// 2026" vs now, both in device-local time).
+function getCalendarDayOffset(target: Date): number {
+  const now = new Date();
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  ).getTime();
+  const targetStart = new Date(
+    target.getFullYear(),
+    target.getMonth(),
+    target.getDate()
+  ).getTime();
+
+  return Math.round(
+    (targetStart - todayStart) / (24 * 60 * 60 * 1000)
+  );
+}
+
+function getUpcomingBadgeText(offset: number): string {
+  if (offset === 0) return 'Today';
+  if (offset === 1) return 'Tomorrow';
+  if (offset <= 0) return ''; // passed during the current day
+  if (offset <= 6) return `In ${offset} days`;
+  if (offset <= 31) return `In ${Math.round(offset / 7)} weeks`;
+
+  const months = Math.round(offset / 30);
+
+  return months === 1 ? 'In 1 month' : `In ${months} months`;
+}
+
+// Date formats accepted by the backend: "14 October 2026",
+// "10:00 AM". The pickers below always produce these shapes.
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const MONTH_NAME_MAP: Record<string, number> = MONTH_NAMES.reduce(
+  (map, month, index) => {
+    map[month.toLowerCase()] = index + 1;
+    map[month.toLowerCase().slice(0, 3)] = index + 1;
+    return map;
+  },
+  {} as Record<string, number>
+);
+
+function formatPickerDate(value: Date): string {
+  return `${value.getDate()} ${MONTH_NAMES[value.getMonth()]} ${value.getFullYear()}`;
+}
+
+function formatPickerTime(value: Date): string {
+  let hours = value.getHours();
+  const minutes = value.getMinutes();
+  const period = hours >= 12 ? 'PM' : 'AM';
+
+  hours = hours % 12;
+
+  if (hours === 0) {
+    hours = 12;
+  }
+
+  const minuteText =
+    minutes < 10 ? `0${minutes}` : String(minutes);
+
+  return `${hours}:${minuteText} ${period}`;
+}
+
+// Parse existing appointment strings ("14 October 2026",
+// "2026-10-14", "14/10/2026") back into a Date for the picker.
+// Falls back to now when nothing can be understood.
+function parsePickerDate(value: string): Date {
+  const text = String(value || '').trim();
+
+  if (!text) return new Date();
+
+  const named = text.match(
+    /^(\d{1,2})\s+([A-Za-z.]+),?\s+(\d{4})$/
+  );
+
+  if (named) {
+    const month = MONTH_NAME_MAP[named[2].toLowerCase().replace(/\./g, '')];
+
+    if (month) {
+      const parsed = new Date(Number(named[3]), month - 1, Number(named[1]));
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+  }
+
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+  if (iso) {
+    const parsed = new Date(
+      Number(iso[1]),
+      Number(iso[2]) - 1,
+      Number(iso[3])
+    );
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const numeric = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (numeric) {
+    const parsed = new Date(
+      Number(numeric[3]),
+      Number(numeric[2]) - 1,
+      Number(numeric[1])
+    );
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const fallback = new Date(text);
+  return Number.isNaN(fallback.getTime()) ? new Date() : fallback;
+}
+
+// Parse "10:00 AM" / "20:30" into a Date used for the time picker.
+function parsePickerTime(value: string): Date {
+  const today = new Date();
+  const text = String(value || '').trim();
+
+  const twelveHour = text.match(
+    /^(\d{1,2}):(\d{2})\s*([AaPp])\.?\s?[Mm]\.?$/
+  );
+
+  if (twelveHour) {
+    let hours = Number(twelveHour[1]);
+    const minutes = Number(twelveHour[2]);
+    const period = twelveHour[3].toUpperCase();
+
+    if (period === 'A' && hours === 12) hours = 0;
+    else if (period === 'P' && hours !== 12) hours += 12;
+
+    today.setHours(hours, minutes, 0, 0);
+    return today;
+  }
+
+  const twentyFour = text.match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFour) {
+    today.setHours(Number(twentyFour[1]), Number(twentyFour[2]), 0, 0);
+    return today;
+  }
+
+  today.setHours(10, 0, 0, 0);
+  return today;
+}
 
 
 // ====================================================
@@ -133,7 +338,7 @@ function BottomTab({
 
       <Ionicons
         name={icon}
-        size={22}
+        size={23}
         color={
           active
             ? COLORS.primaryBlue
@@ -235,8 +440,17 @@ const [appointments, setAppointments] =
   const [date, setDate] =
     useState('');
 
-  const [time, setTime] =
-    useState('');
+  // Multiple visit times per appointment (same doctor, same day).
+  const [timeSlots, setTimeSlots] = useState<
+    { id: string; time: string }[]
+  >([{ id: '', time: '' }]);
+
+  // Native date/time pickers (mirrored per-open state).
+  const [showDatePicker, setShowDatePicker] =
+    useState(false);
+
+  const [timePickerSlotIndex, setTimePickerSlotIndex] =
+    useState<number | null>(null);
 
   const [reason, setReason] =
     useState('');
@@ -360,11 +574,14 @@ const [appointments, setAppointments] =
 
     setDate('');
 
-    setTime('');
+    setTimeSlots([{ id: '', time: '' }]);
 
     setReason('');
 
     setReminder(true);
+
+    setShowDatePicker(false);
+    setTimePickerSlotIndex(null);
 
     setModalVisible(true);
   };
@@ -391,7 +608,9 @@ const [appointments, setAppointments] =
 
     setDate(appointment.date);
 
-    setTime(appointment.time);
+    setTimeSlots([
+      { id: appointment.id, time: appointment.time },
+    ]);
 
     setReason(appointment.reason);
 
@@ -399,7 +618,87 @@ const [appointments, setAppointments] =
       appointment.reminder
     );
 
+    setShowDatePicker(false);
+    setTimePickerSlotIndex(null);
+
     setModalVisible(true);
+  };
+
+
+  // ==================================================
+  // TIME SLOT ROWS
+  // ==================================================
+
+  const addTimeSlotRow = () => {
+    setTimeSlots((rows) => [...rows, { id: '', time: '' }]);
+  };
+
+  const removeTimeSlotRow = (index: number) => {
+    setTimeSlots((rows) =>
+      rows.length <= 1 ? rows : rows.filter((_, i) => i !== index)
+    );
+  };
+
+  // Web fallback: type the time manually (e.g. "10:00 AM").
+  const updateTimeSlotRow = (index: number, value: string) => {
+    setTimeSlots((rows) =>
+      rows.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, time: value } : row
+      )
+    );
+  };
+
+
+  // ==================================================
+  // DATE / TIME PICKERS
+  // ==================================================
+
+  const toggleDatePicker = () => {
+    setShowDatePicker((visible) => !visible);
+  };
+
+  const handleDateSelected = (
+    event: DateTimePickerEvent,
+    selected?: Date
+  ) => {
+    setShowDatePicker(false);
+
+    if (event.type === 'dismissed' || !selected) {
+      return;
+    }
+
+    setDate(formatPickerDate(selected));
+  };
+
+  const openTimePicker = (index: number) => {
+    setTimePickerSlotIndex((current) =>
+      current === index ? null : index
+    );
+  };
+
+  const handleTimeSelected = (
+    event: DateTimePickerEvent,
+    selected?: Date
+  ) => {
+    setTimePickerSlotIndex(null);
+
+    if (event.type === 'dismissed' || !selected) {
+      return;
+    }
+
+    const index = timePickerSlotIndex;
+
+    if (index === null) {
+      return;
+    }
+
+    setTimeSlots((rows) =>
+      rows.map((row, rowIndex) =>
+        rowIndex === index
+          ? { ...row, time: formatPickerTime(selected) }
+          : row
+      )
+    );
   };
 
 
@@ -428,8 +727,17 @@ const [appointments, setAppointments] =
       return;
     }
 
-    if (!time.trim()) {
-      showToast('Please enter appointment time');
+    const filledSlots = timeSlots
+      .map((row) => row.time.trim())
+      .filter(Boolean);
+
+    if (filledSlots.length === 0) {
+      showToast('Please enter an appointment time');
+      return;
+    }
+
+    if (filledSlots.some((slot) => !isValidMedicineTime(slot))) {
+      showToast('Invalid time. Use a format such as 10:00 AM.');
       return;
     }
 
@@ -452,7 +760,8 @@ const [appointments, setAppointments] =
         specialty: specialty.trim(),
         hospital: hospital.trim(),
         date: date.trim(),
-        time: time.trim(),
+        time: filledSlots[0],
+        times: filledSlots,
         reason: reason.trim(),
         reminder,
       };
@@ -543,21 +852,30 @@ const [appointments, setAppointments] =
         );
       }
 
-      // Schedule reminder for the newly created appointment.
-      if (data.appointment) {
+      // Schedule reminders for all created time slots.
+      const createdAppointments =
+        Array.isArray(data.appointments) && data.appointments.length > 0
+          ? data.appointments
+          : data.appointment
+          ? [data.appointment]
+          : [];
+
+      if (createdAppointments.length > 0) {
         const reminderAllowed = await requestNotificationPermission();
 
         try {
-          await replaceAppointmentReminder({
-            id: data.appointment._id,
-            doctor: data.appointment.doctor,
-            specialty: data.appointment.specialty,
-            hospital: data.appointment.hospital,
-            date: data.appointment.date,
-            time: data.appointment.time,
-            reminder: data.appointment.reminder,
-            status: data.appointment.status,
-          });
+          for (const created of createdAppointments) {
+            await replaceAppointmentReminder({
+              id: created._id,
+              doctor: created.doctor,
+              specialty: created.specialty,
+              hospital: created.hospital,
+              date: created.date,
+              time: created.time,
+              reminder: created.reminder,
+              status: created.status,
+            });
+          }
         } catch (reminderError) {
           console.error(
             'Appointment reminder scheduling failed:',
@@ -718,12 +1036,33 @@ const [appointments, setAppointments] =
   // FILTER
   // ==================================================
 
-  const filteredAppointments =
-    appointments.filter(
+  const filteredAppointments = appointments
+    .filter(
       appointment =>
         appointment.status ===
         activeTab
-    );
+    )
+    // Upcoming: soonest first. Previous: most recent first.
+    .sort((a, b) => {
+      const timeA = getAppointmentDateTime(a)?.getTime();
+      const timeB = getAppointmentDateTime(b)?.getTime();
+
+      if (timeA == null && timeB == null) {
+        return 0;
+      }
+
+      if (timeA == null) {
+        return 1; // unparsable entries sink to the end
+      }
+
+      if (timeB == null) {
+        return -1;
+      }
+
+      return activeTab === 'Upcoming'
+        ? timeA - timeB
+        : timeB - timeA;
+    });
 
 
   // ==================================================
@@ -745,6 +1084,27 @@ const [appointments, setAppointments] =
     const isUpcoming =
       appointment.status ===
       'Upcoming';
+
+    // Dynamic badge: show how far away the visit is.
+    const parsedDateTime =
+      isUpcoming
+        ? getAppointmentDateTime(appointment)
+        : null;
+
+    const dayOffset =
+      parsedDateTime
+        ? getCalendarDayOffset(parsedDateTime)
+        : null;
+
+    const dynamicLabel =
+      dayOffset != null
+        ? getUpcomingBadgeText(dayOffset)
+        : '';
+
+    const badgeText =
+      isUpcoming && dynamicLabel
+        ? `Upcoming Â· ${dynamicLabel}`
+        : appointment.status;
 
     return (
       <View
@@ -822,7 +1182,7 @@ const [appointments, setAppointments] =
                 },
               ]}
             >
-              {appointment.status}
+              {badgeText}
             </Text>
           </View>
         </View>
@@ -849,7 +1209,7 @@ const [appointments, setAppointments] =
           style={styles.specialtyText}
         >
           {appointment.specialty}
-          {' · '}
+          {' Â· '}
           {appointment.hospital}
         </Text>
 
@@ -1061,69 +1421,28 @@ const [appointments, setAppointments] =
   // ==================================================
 
   return (
-    <KeyboardAvoidingView
+    <SafeAreaView
       style={styles.screen}
-      behavior={
-        Platform.OS === 'ios'
-          ? 'padding'
-          : undefined
-      }
+      edges={['top', 'bottom']}
     >
+      <KeyboardAvoidingView
+        style={styles.screen}
+        behavior={
+          Platform.OS === 'ios'
+            ? 'padding'
+            : undefined
+        }
+      >
 
-      <View style={styles.screen}>
+        <View style={styles.screen}>
 
         {/* ========================================== */}
-        {/* HEADER */}
+        {/* HEADER (same layout as Home) */}
         {/* ========================================== */}
 
-        <View style={styles.topHeader}>
+        {/* HEADER (shared across all screens) */}
 
-          <Text
-            style={styles.welcomeText}
-          >
-            Welcome back, sawan
-          </Text>
-
-
-          <View
-            style={styles.headerRight}
-          >
-
-            <View
-              style={
-                styles.notificationIcon
-              }
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={24}
-                color={
-                  COLORS.mainText
-                }
-              />
-
-              <View
-                style={
-                  styles.notificationDot
-                }
-              />
-            </View>
-
-
-            <View
-              style={styles.avatar}
-            >
-              <Text
-                style={styles.avatarText}
-              >
-                S
-              </Text>
-            </View>
-
-          </View>
-
-        </View>
-
+        <AppHeader />
 
         {/* ========================================== */}
         {/* MAIN */}
@@ -1369,12 +1688,7 @@ const [appointments, setAppointments] =
         {/* ========================================== */}
 
         <View
-          style={[
-            styles.bottomNav,
-
-            isMobile &&
-              styles.bottomNavMobile,
-          ]}
+          style={styles.bottomNav}
         >
 
           <BottomTab
@@ -1696,30 +2010,78 @@ const [appointments, setAppointments] =
                   </Text>
 
 
-                  <TextInput
-                    value={date}
-                    onChangeText={setDate}
-                    placeholder="e.g. 28 September 2026"
-                    placeholderTextColor={
-                      COLORS.secondaryText
-                    }
-                    style={
-                      styles.input
-                    }
-                  />
+                  {Platform.OS === 'web' ? (
+                    <TextInput
+                      value={date}
+                      onChangeText={setDate}
+                      placeholder="e.g. 28 September 2026"
+                      placeholderTextColor={
+                        COLORS.secondaryText
+                      }
+                      style={
+                        styles.input
+                      }
+                    />
+                  ) : (
+                    <Pressable
+                      onPress={toggleDatePicker}
+
+                      style={[
+                        styles.input,
+                        styles.pickerField,
+                      ]}
+                    >
+
+                      <Text
+                        style={[
+                          styles.pickerFieldText,
+
+                          !date &&
+                            styles.pickerFieldPlaceholder,
+                        ]}
+                      >
+                        {date || 'Select date'}
+                      </Text>
+
+                      <Ionicons
+                        name="calendar-outline"
+                        size={20}
+                        color={
+                          date
+                            ? COLORS.primaryBlue
+                            : COLORS.secondaryText
+                        }
+                      />
+
+                    </Pressable>
+                  )}
+
+
+                  {showDatePicker &&
+                    isDateTimePickerSupported &&
+                    NativeDateTimePicker && (
+                      <NativeDateTimePicker
+                        value={parsePickerDate(date)}
+                        mode="date"
+                        display={
+                          Platform.OS === 'ios'
+                            ? 'spinner'
+                            : 'default'
+                        }
+                        onChange={handleDateSelected}
+                        maximumDate={
+                          new Date(2100, 11, 31)
+                        }
+                      />
+                    )}
 
                 </View>
 
 
-                {/* TIME */}
+                {/* TIME SLOTS */}
 
                 <View
-                  style={[
-                    styles.inputGroup,
-
-                    isDesktop &&
-                      styles.inputHalf,
-                  ]}
+                  style={styles.inputGroup}
                 >
 
                   <Text
@@ -1731,17 +2093,130 @@ const [appointments, setAppointments] =
                   </Text>
 
 
-                  <TextInput
-                    value={time}
-                    onChangeText={setTime}
-                    placeholder="e.g. 10:00 AM"
-                    placeholderTextColor={
-                      COLORS.secondaryText
-                    }
-                    style={
-                      styles.input
-                    }
-                  />
+                  {timeSlots.map((row, index) => (
+                    <View
+                      key={`appointment-time-${index}`}
+                      style={styles.scheduleRow}
+                    >
+
+                      {Platform.OS === 'web' ? (
+                        <TextInput
+                          value={row.time}
+
+                          onChangeText={(value) =>
+                            updateTimeSlotRow(index, value)
+                          }
+
+                          placeholder="e.g. 10:00 AM"
+
+                          placeholderTextColor={
+                            COLORS.secondaryText
+                          }
+
+                          style={[
+                            styles.input,
+                            styles.scheduleTimeInput,
+                          ]}
+                        />
+                      ) : (
+                        <Pressable
+                          onPress={() => openTimePicker(index)}
+
+                          style={[
+                            styles.input,
+                            styles.scheduleTimeInput,
+                            styles.pickerField,
+                          ]}
+                        >
+
+                          <Text
+                            style={[
+                              styles.pickerFieldText,
+
+                              !row.time &&
+                                styles.pickerFieldPlaceholder,
+                            ]}
+                          >
+                            {row.time || 'Select time'}
+                          </Text>
+
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color={
+                              row.time
+                                ? COLORS.primaryBlue
+                                : COLORS.secondaryText
+                            }
+                          />
+
+                        </Pressable>
+                      )}
+
+                      <Pressable
+                        onPress={() =>
+                          removeTimeSlotRow(index)
+                        }
+
+                        style={styles.scheduleRemoveButton}
+                      >
+
+                        <Ionicons
+                          name="close-outline"
+                          size={20}
+                          color={
+                            COLORS.dangerRed
+                          }
+                        />
+
+                      </Pressable>
+
+                    </View>
+                  ))}
+
+
+                  {timePickerSlotIndex !== null &&
+                    isDateTimePickerSupported &&
+                    NativeDateTimePicker && (
+                      <NativeDateTimePicker
+                        value={parsePickerTime(
+                          timeSlots[timePickerSlotIndex]?.time || ''
+                        )}
+                        mode="time"
+                        display={
+                          Platform.OS === 'ios'
+                            ? 'spinner'
+                            : 'default'
+                        }
+                        is24Hour={false}
+                        onChange={handleTimeSelected}
+                      />
+                    )}
+
+
+                  <Pressable
+                    onPress={addTimeSlotRow}
+
+                    style={styles.addScheduleButton}
+                  >
+
+                    <Ionicons
+                      name="add-outline"
+                      size={18}
+                      color={
+                        COLORS.primaryBlue
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.addScheduleText
+                      }
+                    >
+                      Add another time
+                    </Text>
+
+                  </Pressable>
 
                 </View>
 
@@ -1910,7 +2385,8 @@ const [appointments, setAppointments] =
 
       </View>
 
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -1975,6 +2451,10 @@ const styles = StyleSheet.create({
 
     justifyContent:
       'space-between',
+
+    position: 'relative',
+
+    zIndex: 9999,
   },
 
 
@@ -1994,31 +2474,165 @@ const styles = StyleSheet.create({
 
     alignItems: 'center',
 
-    gap: 22,
-  },
+    gap: 12,
 
-
-  notificationIcon: {
     position: 'relative',
+
+    zIndex: 9999,
   },
 
 
-  notificationDot: {
+  notificationBadge: {
     position: 'absolute',
+
+    top: 2,
 
     right: 1,
 
-    top: 0,
+    minWidth: 17,
 
-    width: 7,
+    height: 17,
 
-    height: 7,
+    paddingHorizontal: 4,
 
-    borderRadius: 4,
+    borderRadius: 9,
 
-    backgroundColor:
-      COLORS.dangerRed,
+    backgroundColor: COLORS.dangerRed,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
   },
+
+
+  notificationBadgeText: {
+    color: COLORS.white,
+
+    fontFamily: 'Inter_700Bold',
+
+    fontSize: 9,
+  },
+
+
+  notificationDropdown: {
+    position: 'absolute',
+
+    top: 50,
+
+    right: 0,
+
+    width: 360,
+
+    maxWidth: 360,
+
+    backgroundColor: COLORS.white,
+
+    borderWidth: 1,
+
+    borderColor: COLORS.border,
+
+    borderRadius: 14,
+
+    padding: 20,
+
+    zIndex: 99999,
+
+    elevation: 12,
+
+    shadowColor: '#000000',
+
+    shadowOffset: { width: 0, height: 5 },
+
+    shadowOpacity: 0.15,
+
+    shadowRadius: 12,
+  },
+
+
+  notificationDropdownHeader: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'space-between',
+
+    paddingBottom: 12,
+
+    borderBottomWidth: 1,
+
+    borderBottomColor: COLORS.border,
+  },
+
+
+  notificationDropdownTitle: {
+    color: COLORS.mainText,
+
+    fontFamily: 'Poppins_600SemiBold',
+
+    fontSize: 17,
+  },
+
+
+  notificationEmptyState: {
+    alignItems: 'center',
+
+    paddingVertical: 24,
+
+    paddingHorizontal: 8,
+  },
+
+
+  notificationEmptyTitle: {
+    color: COLORS.mainText,
+
+    fontFamily: 'Inter_600SemiBold',
+
+    fontSize: 14,
+
+    marginTop: 10,
+  },
+
+
+  notificationEmptyText: {
+    color: COLORS.secondaryText,
+
+    fontFamily: 'Inter_400Regular',
+
+    fontSize: 12,
+
+    lineHeight: 18,
+
+    textAlign: 'center',
+
+    marginTop: 5,
+  },
+
+
+  notificationList: { maxHeight: 360, marginTop: 4 },
+
+  notificationItem: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 13, paddingHorizontal: 5, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 10 },
+
+  notificationUnread: { backgroundColor: '#F2F8FC' },
+
+  notificationItemIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.lightBlue, alignItems: 'center', justifyContent: 'center' },
+
+  notificationItemContent: { flex: 1, minWidth: 0 },
+
+  notificationItemTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+
+  notificationItemTitle: { flex: 1, color: COLORS.mainText, fontFamily: 'Inter_600SemiBold', fontSize: 13 },
+
+  notificationItemMessage: { color: COLORS.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 17, marginTop: 4 },
+
+  notificationItemDate: { color: COLORS.secondaryText, fontFamily: 'Inter_400Regular', fontSize: 10, marginTop: 6 },
+
+  notificationMarkRead: { color: COLORS.primaryBlue, fontFamily: 'Inter_500Medium', fontSize: 10, marginTop: 4 },
+
+  notificationUnreadDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: COLORS.primaryBlue },
+
+  notificationRetryButton: { marginTop: 10, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8, backgroundColor: COLORS.lightBlue },
+
+  notificationRetryText: { color: COLORS.primaryBlue, fontFamily: 'Inter_600SemiBold', fontSize: 12 },
 
 
   avatar: {
@@ -2035,6 +2649,17 @@ const styles = StyleSheet.create({
 
     justifyContent:
       'center',
+  },
+
+
+  avatarWithPhoto: {
+    overflow: 'hidden',
+  },
+
+  avatarPhoto: {
+    width: 48,
+
+    height: 48,
   },
 
 
@@ -2600,26 +3225,25 @@ const styles = StyleSheet.create({
     justifyContent:
       'space-around',
 
-    paddingHorizontal: 25,
-  },
-
-
-  bottomNavMobile: {
-    height: 68,
-
-    paddingHorizontal: 8,
+    paddingHorizontal: 20,
   },
 
 
   bottomTab: {
-    minWidth: 80,
+    height: 48,
+
+    flex: 1,
+
+    maxWidth: 96,
 
     alignItems: 'center',
 
     justifyContent:
       'center',
 
-    gap: 3,
+    gap: 4,
+
+    borderRadius: 10,
 
     paddingVertical: 5,
   },
@@ -2628,8 +3252,6 @@ const styles = StyleSheet.create({
   bottomTabActive: {
     backgroundColor:
       '#E5F2F9',
-
-    borderRadius: 10,
   },
 
 
@@ -3034,6 +3656,87 @@ const styles = StyleSheet.create({
 
     color:
       COLORS.white,
+  },
+
+
+  scheduleRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 8,
+
+    marginBottom: 10,
+  },
+
+
+  pickerField: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent:
+      'space-between',
+
+    gap: 8,
+  },
+
+
+  pickerFieldText: {
+    flexShrink: 1,
+
+    fontFamily:
+      'Inter_400Regular',
+
+    fontSize: 15,
+
+    color:
+      COLORS.mainText,
+  },
+
+
+  pickerFieldPlaceholder: {
+    color:
+      COLORS.secondaryText,
+  },
+
+
+  scheduleTimeInput: {
+    flex: 1,
+  },
+
+
+  scheduleRemoveButton: {
+    width: 34,
+
+    height: 34,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+  },
+
+
+  addScheduleButton: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 6,
+
+    paddingVertical: 8,
+    alignSelf: 'flex-start',
+  },
+
+
+  addScheduleText: {
+    fontFamily:
+      'Inter_600SemiBold',
+
+    fontSize: 13,
+
+    color:
+      COLORS.primaryBlue,
   },
 
 });

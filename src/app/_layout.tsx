@@ -48,6 +48,11 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="caregiver"
+        options={{ href: null }}
+      />
+
+      <Tabs.Screen
         name="register"
         options={{ href: null }}
       />

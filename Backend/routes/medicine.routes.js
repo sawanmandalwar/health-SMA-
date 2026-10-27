@@ -14,6 +14,10 @@ const {
   deriveMedicineStatus,
   getDayRange,
 } = require("../services/doseService");
+const {
+  syncMedicineNotifications,
+  clearMedicineNotifications,
+} = require("../services/notificationService");
 
 const router = express.Router();
 
@@ -84,6 +88,15 @@ router.post("/", auth, async (req, res) => {
 
     medicine.estimatedRunOutDate = computeEstimatedRunOutDate(medicine);
     await medicine.save();
+
+    try {
+      await syncMedicineNotifications(req.userId, { medicines: [medicine] });
+    } catch (notificationError) {
+      console.error(
+        "Medicine notification sync error:",
+        notificationError
+      );
+    }
 
     res.status(201).json({
       message: "Medicine added successfully",
@@ -157,6 +170,15 @@ router.delete("/:id", auth, async (req, res) => {
       _id: req.params.id,
       userId: req.userId,
     });
+
+    try {
+      await clearMedicineNotifications(req.userId, medicine._id);
+    } catch (notificationError) {
+      console.error(
+        "Medicine notification cleanup error:",
+        notificationError
+      );
+    }
 
     res.status(200).json({
       message: "Medicine deleted successfully",
@@ -239,6 +261,16 @@ router.put("/:id", auth, async (req, res) => {
     medicine.estimatedRunOutDate = computeEstimatedRunOutDate(medicine);
 
     await medicine.save();
+
+    try {
+      await clearMedicineNotifications(req.userId, medicine._id);
+      await syncMedicineNotifications(req.userId, { medicines: [medicine] });
+    } catch (notificationError) {
+      console.error(
+        "Medicine notification sync error:",
+        notificationError
+      );
+    }
 
     res.status(200).json({
       message: "Medicine updated successfully",

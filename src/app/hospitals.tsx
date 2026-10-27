@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   View,
@@ -9,6 +9,8 @@ import {
   TextInput,
   useWindowDimensions,
   Linking,
+  Platform,
+  ActivityIndicator,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -30,8 +32,42 @@ import {
 
 import { useFonts } from 'expo-font';
 
-import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useRouter, useFocusEffect } from 'expo-router';
+
+import * as Location from 'expo-location';
+
+import { apiFetch, parseJson, getApiErrorMessage } from '../services/api';
+
+import AppHeader from '../components/AppHeader';
+
+// ====================================================
+// MAP (OpenStreetMap via MapLibre, native only)
+// ====================================================
+// @maplibre/maplibre-react-native renders OpenStreetMap data and
+// has no web implementation, so it is required lazily and the map
+// area falls back to a static notice on web. The free OpenFreeMap
+// "Liberty" style is used, so no map API key is required.
+
+let MapLibre: typeof import('@maplibre/maplibre-react-native') | null = null;
+
+if (Platform.OS !== 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  MapLibre = require('@maplibre/maplibre-react-native');
+}
+
+const isMapSupported = Platform.OS !== 'web' && MapLibre !== null;
+
+// Free vector style built on OpenStreetMap data (attribution is
+// rendered on the map by MapLibre automatically).
+const OSM_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+
+// Neutral fallback camera (India center) used before the user's
+// location is known. This is only a map position, never hospital data.
+const INITIAL_CAMERA_CENTER: [number, number] = [78.9629, 20.5937];
+const INITIAL_CAMERA_ZOOM = 3.5;
+const NEARBY_ZOOM = 13.5;
 
 // ====================================================
 // COLORS
@@ -60,58 +96,68 @@ const COLORS = {
   mapBackground: '#CDEBFA',
 };
 
-
 // ====================================================
-// HOSPITAL DATA
+// TYPES
 // ====================================================
 
-type Hospital = {
-  id: string;
-  name: string;
-  distance: string;
-  specialty: string;
-  address: string;
-  phone: string;
+type Coords = {
   latitude: number;
   longitude: number;
 };
 
+type Hospital = {
+  id: string;
+  name: string;
+  address: string;
+  facilityType: string;
+  phone: string;
+  latitude: number;
+  longitude: number;
+  // Computed by the backend from the user's GPS origin via OSRM.
+  // null when the routing service was unreachable.
+  drivingDistanceKm?: number | null;
+};
 
-const HOSPITALS: Hospital[] = [
-  {
-    id: '1',
-    name: 'City Care Hospital',
-    distance: '1.2 km',
-    specialty: 'Cardiology · Multi-specialty',
-    address: 'MG Road, Indore',
-    phone: '0731-4001000',
-    latitude: 28,
-    longitude: 18,
-  },
+type LocationStatus =
+  | 'idle'
+  | 'locating'
+  | 'granted'
+  | 'denied'
+  | 'error';
 
-  {
-    id: '2',
-    name: 'Apollo Clinic',
-    distance: '2.5 km',
-    specialty: 'General Medicine',
-    address: 'Vijay Nagar, Indore',
-    phone: '0731-4002000',
-    latitude: 42,
-    longitude: 57,
-  },
+// ====================================================
+// DISTANCE HELPERS (haversine, no extra Google API)
+// ====================================================
 
-  {
-    id: '3',
-    name: "Sunrise Children's Hospital",
-    distance: '3.1 km',
-    specialty: 'Pediatrics',
-    address: 'Bhawarkuan, Indore',
-    phone: '0731-4003000',
-    latitude: 75,
-    longitude: 42,
-  },
-];
+function haversineKm(from: Coords, to: Coords): number {
+  const earthRadiusKm = 6371;
 
+  const toRad = (value: number) => (value * Math.PI) / 180;
+
+  const dLat = toRad(to.latitude - from.latitude);
+  const dLng = toRad(to.longitude - from.longitude);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(from.latitude)) *
+      Math.cos(toRad(to.latitude)) *
+      Math.sin(dLng / 2) *
+      Math.sin(dLng / 2);
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(distanceKm: number | null): string {
+  if (distanceKm == null) {
+    return 'Distance unavailable';
+  }
+
+  if (distanceKm < 1) {
+    return `${Math.max(1, Math.round(distanceKm * 1000))} m`;
+  }
+
+  return `${distanceKm.toFixed(1)} km`;
+}
 
 // ====================================================
 // SCREEN
@@ -124,10 +170,19 @@ export default function HospitalsScreen() {
 
   const isMobile = width < 600;
 
-  const isTablet =
-    width >= 600 && width < 900;
+  const isTablet = width >= 600 && width < 900;
 
-  const isDesktop = width >= 900;
+  const mapRef = useRef<any>(null);
+
+  const cameraRef = useRef<any>(null);
+
+  // Center of the last successful hospital query, so panning the map
+  // only triggers a fresh search when the area actually changed.
+  const lastQueryCenterRef = useRef<Coords | null>(null);
+
+  const panSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
 
   // ==================================================
@@ -149,59 +204,62 @@ export default function HospitalsScreen() {
 
 
   // ==================================================
+  // LOCATION
+  // ==================================================
+
+  const [locationStatus, setLocationStatus] =
+    useState<LocationStatus>('idle');
+
+  const [locationError, setLocationError] = useState('');
+
+  const [userCoords, setUserCoords] = useState<Coords | null>(null);
+
+  // Latest GPS fix kept in a ref so hospital requests always carry a
+  // fresh origin without waiting for a re-render.
+  const userCoordsRef = useRef<Coords | null>(null);
+
+
+  // ==================================================
+  // HOSPITALS
+  // ==================================================
+
+  const [hospitals, setHospitals] = useState<Hospital[]>([]);
+
+  const [hospitalsLoading, setHospitalsLoading] = useState(false);
+
+  const [hospitalsError, setHospitalsError] = useState('');
+
+  const [activeAreaLabel, setActiveAreaLabel] =
+    useState('Discover hospitals near you');
+
+
+  // ==================================================
   // SEARCH
   // ==================================================
 
-  const [query, setQuery] =
-    useState('');
+  const [query, setQuery] = useState('');
+
+  const [searching, setSearching] = useState(false);
+
+
+  // ==================================================
+  // SELECTED HOSPITAL (details card on the map)
+  // ==================================================
+
+  const [selectedHospitalId, setSelectedHospitalId] = useState<
+    string | null
+  >(null);
 
 
   // ==================================================
   // TOAST
   // ==================================================
 
-  const [toastVisible, setToastVisible] =
-    useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
 
-  const [toastMessage, setToastMessage] =
-    useState('');
+  const [toastMessage, setToastMessage] = useState('');
 
-
-  // ==================================================
-  // FILTER HOSPITALS
-  // ==================================================
-
-  const filteredHospitals =
-    useMemo(() => {
-      const search =
-        query.trim().toLowerCase();
-
-      if (!search) {
-        return HOSPITALS;
-      }
-
-      return HOSPITALS.filter(
-        hospital =>
-          hospital.name
-            .toLowerCase()
-            .includes(search) ||
-          hospital.specialty
-            .toLowerCase()
-            .includes(search) ||
-          hospital.address
-            .toLowerCase()
-            .includes(search)
-      );
-    }, [query]);
-
-
-  // ==================================================
-  // TOAST
-  // ==================================================
-
-  const showToast = (
-    message: string
-  ) => {
+  const showToast = useCallback((message: string) => {
     setToastMessage(message);
 
     setToastVisible(true);
@@ -209,47 +267,385 @@ export default function HospitalsScreen() {
     setTimeout(() => {
       setToastVisible(false);
     }, 2500);
+  }, []);
+
+
+  // ==================================================
+  // LOAD NEARBY HOSPITALS FROM THE BACKEND PROXY
+  // ==================================================
+
+  // Query param for the backend to compute driving distances from the
+  // user's GPS position (OSRM). Empty when no fix is available.
+  const originParams = (): string => {
+    const origin = userCoordsRef.current;
+
+    if (!origin) {
+      return '';
+    }
+
+    return `&originLat=${origin.latitude}&originLng=${origin.longitude}`;
   };
 
+  const loadNearbyHospitals = useCallback(
+    async (coords: Coords, areaLabel = 'Hospitals near your location') => {
+      setHospitalsLoading(true);
+      setHospitalsError('');
+
+      try {
+        const response = await apiFetch(
+          `/api/places/nearby?lat=${coords.latitude}&lng=${coords.longitude}&radius=5000${originParams()}`,
+        );
+
+        const data = await parseJson(response);
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Unable to load nearby hospitals');
+        }
+
+        setHospitals(data.hospitals || []);
+        setActiveAreaLabel(areaLabel);
+        lastQueryCenterRef.current = coords;
+        setSelectedHospitalId(null);
+      } catch (error) {
+        console.log('Nearby hospitals error:', error);
+        setHospitals([]);
+        setHospitalsError(getApiErrorMessage(error));
+      } finally {
+        setHospitalsLoading(false);
+      }
+    },
+    [],
+  );
+
+  const moveCameraTo = useCallback(
+    (coords: Coords, zoom = NEARBY_ZOOM) => {
+      if (!isMapSupported || !cameraRef.current) return;
+
+      cameraRef.current.easeTo({
+        center: [coords.longitude, coords.latitude],
+        zoom,
+        duration: 600,
+      });
+    },
+    [],
+  );
+
 
   // ==================================================
-  // CALL
+  // REQUEST PERMISSION + GET CURRENT LOCATION
   // ==================================================
 
-  const callHospital = (
-    hospital: Hospital
-  ) => {
-    Linking.openURL(
-      `tel:${hospital.phone}`
-    ).catch(() => {
-      showToast(
-        `Calling ${hospital.name}`
+  const locateUser = useCallback(async () => {
+    setLocationStatus('locating');
+    setLocationError('');
+
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+
+      if (permission.status !== 'granted') {
+        setLocationStatus('denied');
+        setLocationError(
+          'Location permission was denied. Search for a city instead, or allow location access in Settings.',
+        );
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const coords: Coords = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+
+      userCoordsRef.current = coords;
+      setUserCoords(coords);
+      setLocationStatus('granted');
+      moveCameraTo(coords, 0.05);
+      await loadNearbyHospitals(coords);
+    } catch (error) {
+      console.log('Location error:', error);
+      setLocationStatus('error');
+      setLocationError(
+        'Could not determine your location. Search for a city instead.',
       );
-    });
-  };
+    }
+  }, [loadNearbyHospitals, moveCameraTo]);
+
+
+  // ==================================================
+  // SILENT GPS REFRESH (when returning to the screen)
+  // ==================================================
+  // Keeps distances accurate without reloading hospital data.
+
+  const refreshGpsSilently = useCallback(async () => {
+    try {
+      const last = await Location.getLastKnownPositionAsync();
+
+      if (last && Date.now() - last.timestamp < 60_000) {
+        const coords: Coords = {
+          latitude: last.coords.latitude,
+          longitude: last.coords.longitude,
+        };
+        userCoordsRef.current = coords;
+        setUserCoords(coords);
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const coords: Coords = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+      userCoordsRef.current = coords;
+      setUserCoords(coords);
+    } catch {
+      // Keep the previous fix; permission may be missing here.
+    }
+  }, []);
+
+  const hasLocatedRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!hasLocatedRef.current) {
+        hasLocatedRef.current = true;
+        locateUser();
+      } else {
+        refreshGpsSilently();
+      }
+    }, [locateUser, refreshGpsSilently]),
+  );
+
+
+  // ==================================================
+  // CITY / LOCATION SEARCH (manual fallback + feature)
+  // ==================================================
+
+  const searchLocation = useCallback(async () => {
+    const area = query.trim();
+
+    if (area.length < 2) {
+      showToast('Enter a city or location name');
+      return;
+    }
+
+    setSearching(true);
+    setHospitalsError('');
+    setHospitalsLoading(true);
+
+    try {
+      const response = await apiFetch(
+        `/api/places/search?q=${encodeURIComponent(area)}${originParams()}`,
+      );
+
+      const data = await parseJson(response);
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Unable to search hospitals');
+      }
+
+      const results: Hospital[] = data.hospitals || [];
+
+      setHospitals(results);
+      setActiveAreaLabel(`Hospitals in ${area}`);
+      setSelectedHospitalId(null);
+
+      // Remember the searched area so the map pan handler does not
+      // immediately re-run a nearby search for the same region.
+      if (results.length > 0) {
+        lastQueryCenterRef.current = {
+          latitude:
+            results.reduce((sum, h) => sum + h.latitude, 0) / results.length,
+          longitude:
+            results.reduce((sum, h) => sum + h.longitude, 0) / results.length,
+        };
+      }
+
+      if (results.length === 0) {
+        showToast(`No hospitals found for ${area}`);
+      } else if (isMapSupported && cameraRef.current) {
+        if (results.length === 1) {
+          cameraRef.current.easeTo({
+            center: [results[0].longitude, results[0].latitude],
+            zoom: NEARBY_ZOOM,
+            duration: 600,
+          });
+        } else {
+          // Frame all results on the map.
+          const lats = results.map((hospital) => hospital.latitude);
+          const lngs = results.map((hospital) => hospital.longitude);
+
+          cameraRef.current.fitBounds(
+            [
+              Math.min(...lngs),
+              Math.min(...lats),
+              Math.max(...lngs),
+              Math.max(...lats),
+            ],
+            { paddingTop: 60, paddingRight: 60, paddingBottom: 60, paddingLeft: 60 },
+            600,
+          );
+        }
+      }
+    } catch (error) {
+      console.log('Hospital search error:', error);
+      setHospitals([]);
+      setHospitalsError(getApiErrorMessage(error));
+    } finally {
+      setSearching(false);
+      setHospitalsLoading(false);
+    }
+  }, [query, showToast]);
+
+
+  // ==================================================
+  // MAP PAN SEARCH (results follow the visible map area)
+  // ==================================================
+
+  const handleMapRegionChange = useCallback(
+    (event: { nativeEvent?: { center?: unknown } }) => {
+      const center = event?.nativeEvent?.center;
+
+      let longitude: number | null = null;
+      let latitude: number | null = null;
+
+      if (Array.isArray(center) && center.length >= 2) {
+        const lng = Number(center[0]);
+        const lat = Number(center[1]);
+
+        if (Number.isFinite(lng) && Number.isFinite(lat)) {
+          longitude = lng;
+          latitude = lat;
+        }
+      } else if (center && typeof center === 'object') {
+        const asObject = center as { lng?: unknown; lat?: unknown };
+        const lng = Number(asObject.lng);
+        const lat = Number(asObject.lat);
+
+        if (Number.isFinite(lng) && Number.isFinite(lat)) {
+          longitude = lng;
+          latitude = lat;
+        }
+      }
+
+      if (longitude == null || latitude == null) {
+        return;
+      }
+
+      // Wait until the first real query (GPS or manual search) has run,
+      // otherwise the initial camera position would trigger a search.
+      if (!lastQueryCenterRef.current) {
+        return;
+      }
+
+      // Ignore small adjustments and camera animations we triggered.
+      if (haversineKm(lastQueryCenterRef.current, { latitude, longitude }) < 1.5) {
+        return;
+      }
+
+      if (hospitalsLoading || searching) {
+        return;
+      }
+
+      if (panSearchTimerRef.current) {
+        clearTimeout(panSearchTimerRef.current);
+      }
+
+      panSearchTimerRef.current = setTimeout(() => {
+        panSearchTimerRef.current = null;
+        loadNearbyHospitals(
+          { latitude, longitude },
+          'Hospitals in this area',
+        );
+      }, 1000);
+    },
+    [hospitalsLoading, searching, loadNearbyHospitals],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (panSearchTimerRef.current) {
+        clearTimeout(panSearchTimerRef.current);
+        panSearchTimerRef.current = null;
+      }
+    };
+  }, []);
 
 
   // ==================================================
   // DIRECTIONS
   // ==================================================
 
-  const openDirections = (
-    hospital: Hospital
-  ) => {
-    const encodedAddress =
-      encodeURIComponent(
-        `${hospital.name}, ${hospital.address}`
+  const openDirections = useCallback(
+    (hospital: Hospital) => {
+      const destination = encodeURIComponent(
+        `${hospital.latitude},${hospital.longitude}`,
       );
 
-    const url =
-      `https://www.google.com/maps/search/?api=1&query=${encodedAddress}`;
+      const url =
+        `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
 
-    Linking.openURL(url).catch(() => {
-      showToast(
-        'Unable to open directions'
-      );
-    });
-  };
+      Linking.openURL(url).catch(() => {
+        showToast('Unable to open directions');
+      });
+    },
+    [showToast],
+  );
+
+
+  // ==================================================
+  // CALL
+  // ==================================================
+
+  const callHospital = useCallback(
+    (hospital: Hospital) => {
+      if (!hospital.phone) {
+        showToast('No phone number available');
+        return;
+      }
+
+      Linking.openURL(`tel:${hospital.phone}`).catch(() => {
+        showToast('Unable to start a call');
+      });
+    },
+    [showToast],
+  );
+
+
+  // ==================================================
+  // DISTANCE + DERIVED DATA
+  // ==================================================
+  // The backend sorts hospitals by driving distance when the user's
+  // GPS origin was available; straight-line is the fallback.
+
+  const distanceFor = useCallback(
+    (hospital: Hospital): number | null => {
+      if (hospital.drivingDistanceKm != null) {
+        return hospital.drivingDistanceKm;
+      }
+
+      if (!userCoords) return null;
+
+      return haversineKm(userCoords, {
+        latitude: hospital.latitude,
+        longitude: hospital.longitude,
+      });
+    },
+    [userCoords],
+  );
+
+  const selectedHospital = useMemo(() => {
+    if (!selectedHospitalId) return null;
+
+    return (
+      hospitals.find((hospital) => hospital.id === selectedHospitalId) || null
+    );
+  }, [hospitals, selectedHospitalId]);
 
 
   // ==================================================
@@ -262,54 +658,304 @@ export default function HospitalsScreen() {
 
 
   // ==================================================
+  // FACILITY TYPE ROW (from OpenStreetMap tags)
+  // ==================================================
+
+  const renderFacilityType = (hospital: Hospital) => {
+    return (
+      <Text style={styles.facilityTypeText}>
+        {hospital.facilityType}
+      </Text>
+    );
+  };
+
+
+  // ==================================================
+  // MAP AREA (markers + selected hospital card)
+  // ==================================================
+
+  const renderMap = () => {
+    // Local copies so TypeScript can narrow the lazy module refs.
+    const ActiveMap = MapLibre?.Map;
+    const ActiveCamera = MapLibre?.Camera;
+    const ActiveMarker = MapLibre?.Marker;
+    const ActiveUserLocation = MapLibre?.UserLocation;
+
+    if (!isMapSupported || !ActiveMap || !ActiveCamera || !ActiveMarker) {
+      // Web fallback: hospital search and cards still work.
+      return (
+        <View
+          style={[
+            styles.map,
+            styles.mapFallback,
+            isMobile && styles.mapMobile,
+          ]}
+        >
+          <Ionicons
+            name="map-outline"
+            size={44}
+            color={COLORS.primaryBlue}
+          />
+
+          <Text style={styles.mapFallbackTitle}>
+            Interactive map
+          </Text>
+
+          <Text style={styles.mapFallbackText}>
+            The map is available in the Android and iOS apps. Hospital search still works here.
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View
+        style={[
+          styles.map,
+          isMobile && styles.mapMobile,
+        ]}
+      >
+        <ActiveMap
+          ref={mapRef}
+          mapStyle={OSM_STYLE_URL}
+          style={StyleSheet.absoluteFill}
+          onRegionDidChange={handleMapRegionChange}
+          onPress={() => setSelectedHospitalId(null)}
+        >
+          <ActiveCamera
+            ref={cameraRef}
+            initialViewState={{
+              center: INITIAL_CAMERA_CENTER,
+              zoom: INITIAL_CAMERA_ZOOM,
+            }}
+          />
+
+          {locationStatus === 'granted' && ActiveUserLocation && (
+            <ActiveUserLocation animated />
+          )}
+
+          {hospitals.map((hospital) => (
+            <ActiveMarker
+              key={hospital.id || `${hospital.latitude}-${hospital.longitude}`}
+              id={hospital.id || `${hospital.latitude}-${hospital.longitude}`}
+              lngLat={[hospital.longitude, hospital.latitude]}
+              onPress={() => setSelectedHospitalId(hospital.id)}
+            >
+              <View
+                style={[
+                  styles.markerPin,
+
+                  hospital.id === selectedHospitalId &&
+                    styles.markerPinSelected,
+                ]}
+              >
+                <Ionicons
+                  name="business-outline"
+                  size={20}
+                  color={COLORS.white}
+                />
+              </View>
+            </ActiveMarker>
+          ))}
+        </ActiveMap>
+
+
+        {/* LOCATION STATUS BADGE */}
+
+        <View style={styles.locationBadge}>
+          {locationStatus === 'locating' ? (
+            <>
+              <ActivityIndicator
+                size="small"
+                color={COLORS.primaryBlue}
+              />
+
+              <Text style={styles.locationText}>
+                Finding your location...
+              </Text>
+            </>
+          ) : (
+            <>
+              <Ionicons
+                name="location-outline"
+                size={19}
+                color={COLORS.primaryBlue}
+              />
+
+              <Text
+                style={styles.locationText}
+                numberOfLines={1}
+              >
+                {locationStatus === 'granted'
+                  ? 'Showing hospitals near you'
+                  : activeAreaLabel}
+              </Text>
+            </>
+          )}
+        </View>
+
+
+        {/* RECENTER / RETRY LOCATION BUTTON */}
+
+        <Pressable
+          onPress={locateUser}
+          disabled={locationStatus === 'locating'}
+          style={styles.recenterButton}
+        >
+          <Ionicons
+            name="locate"
+            size={21}
+            color={COLORS.primaryBlue}
+          />
+        </Pressable>
+
+
+        {/* SELECTED HOSPITAL DETAILS CARD */}
+
+        {selectedHospital && (
+          <View style={styles.detailsCard}>
+            <View style={styles.detailsCardHeader}>
+              <View style={styles.detailsCardIcon}>
+                <Ionicons
+                  name="business-outline"
+                  size={22}
+                  color={COLORS.primaryGreen}
+                />
+              </View>
+
+              <View style={styles.detailsCardTitleArea}>
+                <Text
+                  style={styles.detailsCardName}
+                  numberOfLines={2}
+                >
+                  {selectedHospital.name}
+                </Text>
+
+                {renderFacilityType(selectedHospital)}
+              </View>
+
+              <Pressable
+                onPress={() => setSelectedHospitalId(null)}
+                hitSlop={8}
+              >
+                <Ionicons
+                  name="close"
+                  size={20}
+                  color={COLORS.secondaryText}
+                />
+              </Pressable>
+            </View>
+
+            {selectedHospital.address ? (
+              <Text
+                style={styles.detailsCardAddress}
+                numberOfLines={2}
+              >
+                {selectedHospital.address}
+              </Text>
+            ) : null}
+
+            <View style={styles.detailsCardMetaRow}>
+              <Text style={styles.detailsCardDistance}>
+                {formatDistance(distanceFor(selectedHospital))}
+              </Text>
+
+              <Text style={styles.detailsCardFacilityType}>
+                {selectedHospital.facilityType}
+              </Text>
+            </View>
+
+            <View style={styles.detailsCardActions}>
+              {selectedHospital.phone ? (
+                <Pressable
+                  onPress={() => callHospital(selectedHospital)}
+                  style={styles.detailsCardCall}
+                >
+                  <Ionicons
+                    name="call-outline"
+                    size={17}
+                    color={COLORS.mainText}
+                  />
+
+                  <Text style={styles.detailsCardCallText}>
+                    Call
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                onPress={() => openDirections(selectedHospital)}
+                style={[
+                  styles.detailsCardDirections,
+                  !selectedHospital.phone &&
+                    styles.detailsCardDirectionsFull,
+                ]}
+              >
+                <Ionicons
+                  name="navigate-outline"
+                  size={17}
+                  color={COLORS.white}
+                />
+
+                <Text style={styles.detailsCardDirectionsText}>
+                  Get Directions
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  };
+
+
+  // ==================================================
   // HOSPITAL CARD
   // ==================================================
 
-  const renderHospital = (
-    hospital: Hospital
-  ) => {
+  const renderHospital = (hospital: Hospital) => {
     return (
-      <View
-        key={hospital.id}
+      <Pressable
+        key={hospital.id || `${hospital.latitude}-${hospital.longitude}`}
         style={[
           styles.hospitalCard,
 
-          isMobile &&
-            styles.hospitalCardMobile,
+          isMobile && styles.hospitalCardMobile,
+
+          hospital.id === selectedHospitalId &&
+            styles.hospitalCardSelected,
         ]}
+        onPress={() => {
+          setSelectedHospitalId(hospital.id);
+          moveCameraTo(
+            { latitude: hospital.latitude, longitude: hospital.longitude },
+            0.03,
+          );
+        }}
       >
 
         {/* ------------------------------------------ */}
         {/* HOSPITAL HEADER */}
         {/* ------------------------------------------ */}
 
-        <View
-          style={styles.hospitalHeader}
-        >
+        <View style={styles.hospitalHeader}>
 
-          <View
-            style={styles.hospitalIcon}
-          >
+          <View style={styles.hospitalIcon}>
             <Ionicons
               name="business-outline"
               size={28}
-              color={
-                COLORS.primaryGreen
-              }
+              color={COLORS.primaryGreen}
             />
           </View>
 
 
-          <View
-            style={styles.hospitalTitleArea}
-          >
+          <View style={styles.hospitalTitleArea}>
 
             <Text
               style={[
                 styles.hospitalName,
 
-                isMobile &&
-                  styles.hospitalNameMobile,
+                isMobile && styles.hospitalNameMobile,
               ]}
               numberOfLines={2}
             >
@@ -317,13 +963,15 @@ export default function HospitalsScreen() {
             </Text>
 
 
-            <Text
-              style={
-                styles.distance
-              }
-            >
-              {hospital.distance}
-            </Text>
+            <View style={styles.hospitalMetaRow}>
+              <Text style={styles.distance}>
+                {formatDistance(distanceFor(hospital))}
+              </Text>
+
+              <Text style={styles.hospitalType}>
+                {hospital.facilityType}
+              </Text>
+            </View>
 
           </View>
 
@@ -331,43 +979,40 @@ export default function HospitalsScreen() {
 
 
         {/* ------------------------------------------ */}
-        {/* SPECIALTY */}
+        {/* PHONE */}
         {/* ------------------------------------------ */}
 
-        <Text
-          style={[
-            styles.specialty,
+        {hospital.phone ? (
+          <View style={styles.phoneRow}>
 
-            isMobile &&
-              styles.specialtyMobile,
-          ]}
-        >
-          {hospital.specialty}
-        </Text>
+            <Ionicons
+              name="call-outline"
+              size={17}
+              color={COLORS.secondaryText}
+            />
+
+            <Text style={styles.phoneText}>
+              {hospital.phone}
+            </Text>
+
+          </View>
+        ) : null}
 
 
         {/* ------------------------------------------ */}
         {/* ADDRESS */}
         {/* ------------------------------------------ */}
 
-        <View
-          style={styles.addressRow}
-        >
+        <View style={styles.addressRow}>
 
           <Ionicons
             name="location-outline"
             size={18}
-            color={
-              COLORS.secondaryText
-            }
+            color={COLORS.secondaryText}
           />
 
-          <Text
-            style={
-              styles.addressText
-            }
-          >
-            {hospital.address}
+          <Text style={styles.addressText}>
+            {hospital.address || 'Address unavailable'}
           </Text>
 
         </View>
@@ -381,77 +1026,54 @@ export default function HospitalsScreen() {
           style={[
             styles.cardActions,
 
-            isMobile &&
-              styles.cardActionsMobile,
+            isMobile && styles.cardActionsMobile,
           ]}
         >
 
-          {/* CALL */}
+          {hospital.phone ? (
+            <Pressable
+              onPress={() => callHospital(hospital)}
 
-          <Pressable
-            onPress={() =>
-              callHospital(
-                hospital
-              )
-            }
+              style={[
+                styles.callButton,
 
-            style={[
-              styles.callButton,
-
-              isMobile &&
-                styles.actionButtonMobile,
-            ]}
-          >
-
-            <Ionicons
-              name="call-outline"
-              size={19}
-              color={
-                COLORS.mainText
-              }
-            />
-
-            <Text
-              style={
-                styles.callButtonText
-              }
+                isMobile && styles.actionButtonMobile,
+              ]}
             >
-              Call
-            </Text>
 
-          </Pressable>
+              <Ionicons
+                name="call-outline"
+                size={19}
+                color={COLORS.mainText}
+              />
 
+              <Text style={styles.callButtonText}>
+                Call
+              </Text>
 
-          {/* DIRECTIONS */}
+            </Pressable>
+          ) : null}
+
 
           <Pressable
-            onPress={() =>
-              openDirections(
-                hospital
-              )
-            }
+            onPress={() => openDirections(hospital)}
 
             style={[
               styles.directionButton,
 
-              isMobile &&
-                styles.actionButtonMobile,
+              !hospital.phone && styles.detailsCardDirectionsFull,
+
+              isMobile && styles.actionButtonMobile,
             ]}
           >
 
             <Ionicons
               name="navigate-outline"
               size={19}
-              color={
-                COLORS.white
-              }
+              color={COLORS.white}
             />
 
-            <Text
-              style={
-                styles.directionButtonText
-              }
-            >
+            <Text style={styles.directionButtonText}>
               Directions
             </Text>
 
@@ -459,118 +1081,23 @@ export default function HospitalsScreen() {
 
         </View>
 
-      </View>
+      </Pressable>
     );
   };
 
 
   // ==================================================
-  // MAP MARKER
+  // RETURN
   // ==================================================
-
-  const MapMarker = ({
-    hospital,
-    index,
-  }: {
-    hospital: Hospital;
-    index: number;
-  }) => {
-    return (
-      <View
-        style={[
-          styles.mapMarker,
-
-          {
-            left: `${hospital.latitude}%`,
-            top: `${hospital.longitude}%`,
-          },
-
-          index === 1 &&
-            styles.mapMarkerGreen,
-        ]}
-      >
-
-        <Ionicons
-          name="business-outline"
-          size={22}
-          color={
-            COLORS.white
-          }
-        />
-
-      </View>
-    );
-  };
-
-
-// ==================================================
-// BOTTOM TAB
-// ==================================================
-
-// ==================================================
-// RETURN
-// ==================================================
 
   return (
-    <View style={styles.screen}>
+    <SafeAreaView style={styles.screen} edges={['top']}>
 
       {/* ============================================ */}
-      {/* HEADER */}
+      {/* HEADER (shared across all screens) */}
       {/* ============================================ */}
 
-      <View
-        style={styles.topHeader}
-      >
-
-        <Text
-          style={styles.welcomeText}
-        >
-          Welcome back, sawan
-        </Text>
-
-
-        <View
-          style={styles.headerRight}
-        >
-
-          <View
-            style={
-              styles.notificationIcon
-            }
-          >
-
-            <Ionicons
-              name="notifications-outline"
-              size={24}
-              color={
-                COLORS.mainText
-              }
-            />
-
-            <View
-              style={
-                styles.notificationDot
-              }
-            />
-
-          </View>
-
-
-          <View
-            style={styles.avatar}
-          >
-
-            <Text
-              style={styles.avatarText}
-            >
-              S
-            </Text>
-
-          </View>
-
-        </View>
-
-      </View>
+      <AppHeader />
 
 
       {/* ============================================ */}
@@ -583,29 +1110,24 @@ export default function HospitalsScreen() {
         contentContainerStyle={[
           styles.scrollContent,
 
-          isMobile &&
-            styles.scrollContentMobile,
+          isMobile && styles.scrollContentMobile,
         ]}
 
-        showsVerticalScrollIndicator={
-          false
-        }
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
 
         {/* ========================================== */}
         {/* PAGE TITLE */}
         {/* ========================================== */}
 
-        <View
-          style={styles.pageHeader}
-        >
+        <View style={styles.pageHeader}>
 
           <Text
             style={[
               styles.pageTitle,
 
-              isMobile &&
-                styles.pageTitleMobile,
+              isMobile && styles.pageTitleMobile,
             ]}
           >
             Nearby Hospitals
@@ -616,73 +1138,79 @@ export default function HospitalsScreen() {
             style={[
               styles.pageSubtitle,
 
-              isMobile &&
-                styles.pageSubtitleMobile,
+              isMobile && styles.pageSubtitleMobile,
             ]}
           >
-            Indore, Madhya Pradesh
+            {activeAreaLabel}
           </Text>
 
         </View>
 
 
         {/* ========================================== */}
-        {/* SEARCH */}
+        {/* SEARCH (filter list; submit = city search) */}
         {/* ========================================== */}
 
         <View
           style={[
             styles.searchContainer,
 
-            isMobile &&
-              styles.searchContainerMobile,
+            isMobile && styles.searchContainerMobile,
           ]}
         >
 
           <Ionicons
             name="search-outline"
             size={25}
-            color={
-              COLORS.secondaryText
-            }
+            color={COLORS.secondaryText}
           />
 
 
           <TextInput
             value={query}
             onChangeText={setQuery}
+            onSubmitEditing={searchLocation}
 
-            placeholder="Search hospitals, clinics..."
+            placeholder="Search a city, area or hospital..."
 
-            placeholderTextColor={
-              COLORS.secondaryText
-            }
+            placeholderTextColor={COLORS.secondaryText}
 
-            style={
-              styles.searchInput
-            }
+            style={styles.searchInput}
 
             returnKeyType="search"
+            autoCorrect={false}
           />
 
 
           {query.length > 0 && (
-            <Pressable
-              onPress={() =>
-                setQuery('')
-              }
-            >
+            <Pressable onPress={() => setQuery('')}>
 
               <Ionicons
                 name="close-circle"
                 size={22}
-                color={
-                  COLORS.secondaryText
-                }
+                color={COLORS.secondaryText}
               />
 
             </Pressable>
           )}
+
+
+          <Pressable
+            onPress={searchLocation}
+            disabled={searching}
+            style={styles.searchGoButton}
+          >
+            {searching ? (
+              <ActivityIndicator
+                size="small"
+                color={COLORS.white}
+              />
+            ) : (
+              <Text style={styles.searchGoText}>
+                Search
+              </Text>
+            )}
+          </Pressable>
 
         </View>
 
@@ -691,115 +1219,99 @@ export default function HospitalsScreen() {
         {/* MAP */}
         {/* ========================================== */}
 
-        <View
-          style={[
-            styles.map,
-
-            isMobile &&
-              styles.mapMobile,
-          ]}
-        >
-
-          {/* MAP PATTERN */}
-
-          <View
-            style={
-              styles.mapPattern
-            }
-          >
-
-            {Array.from({
-              length: 30,
-            }).map((_, index) => (
-              <View
-                key={index}
-                style={[
-                  styles.mapLine,
-
-                  {
-                    left:
-                      (index % 10) *
-                      12 -
-                      12,
-
-                    top:
-                      Math.floor(
-                        index / 10
-                      ) *
-                        90 -
-                      30,
-                  },
-                ]}
-              />
-            ))}
-
-          </View>
+        {renderMap()}
 
 
-          {/* MARKERS */}
+        {/* ========================================== */}
+        {/* LOCATION ERRORS */}
+        {/* ========================================== */}
 
-          {HOSPITALS.map(
-            (hospital, index) => (
-              <MapMarker
-                key={hospital.id}
-                hospital={hospital}
-                index={index}
-              />
-            )
-          )}
-
-
-          {/* LOCATION */}
-
-          <View
-            style={
-              styles.locationBadge
-            }
-          >
-
+        {(locationStatus === 'denied' || locationStatus === 'error') && (
+          <View style={styles.noticeBox}>
             <Ionicons
-              name="location-outline"
-              size={19}
-              color={
-                COLORS.primaryBlue
-              }
+              name="information-circle-outline"
+              size={20}
+              color={COLORS.primaryBlue}
             />
 
-            <Text
-              style={
-                styles.locationText
-              }
-            >
-              Indore
+            <Text style={styles.noticeText}>
+              {locationError}
             </Text>
 
+            <Pressable onPress={locateUser}>
+              <Text style={styles.noticeAction}>
+                Try again
+              </Text>
+            </Pressable>
           </View>
-
-        </View>
+        )}
 
 
         {/* ========================================== */}
         {/* HOSPITAL CARDS */}
         {/* ========================================== */}
 
-        {filteredHospitals.length >
-        0 ? (
+        {hospitalsLoading ? (
+
+          <View style={styles.stateBox}>
+            <ActivityIndicator
+              size="large"
+              color={COLORS.primaryBlue}
+            />
+
+            <Text style={styles.stateText}>
+              Finding hospitals...
+            </Text>
+          </View>
+
+        ) : hospitalsError ? (
+
+          <View style={styles.stateBox}>
+
+            <Ionicons
+              name="alert-circle-outline"
+              size={44}
+              color={COLORS.dangerRed}
+            />
+
+            <Text style={styles.stateTitle}>
+              Something went wrong
+            </Text>
+
+            <Text style={styles.stateText}>
+              {hospitalsError}
+            </Text>
+
+            <Pressable
+              style={styles.retryButton}
+              onPress={() => {
+                if (userCoords) {
+                  loadNearbyHospitals(userCoords);
+                } else {
+                  locateUser();
+                }
+              }}
+            >
+              <Text style={styles.retryButtonText}>
+                Try again
+              </Text>
+            </Pressable>
+
+          </View>
+
+        ) : hospitals.length > 0 ? (
 
           <View
             style={[
               styles.hospitalGrid,
 
-              isMobile &&
-                styles.hospitalGridMobile,
+              isMobile && styles.hospitalGridMobile,
 
-              isTablet &&
-                styles.hospitalGridTablet,
+              isTablet && styles.hospitalGridTablet,
             ]}
           >
 
-            {filteredHospitals.map(
-              renderHospital
-            )}
+            {hospitals.map(renderHospital)}
 
           </View>
 
@@ -807,35 +1319,22 @@ export default function HospitalsScreen() {
 
           /* NO RESULTS */
 
-          <View
-            style={
-              styles.noResults
-            }
-          >
+          <View style={styles.noResults}>
 
             <Ionicons
               name="search-outline"
               size={50}
-              color={
-                COLORS.secondaryText
-              }
+              color={COLORS.secondaryText}
             />
 
-            <Text
-              style={
-                styles.noResultsTitle
-              }
-            >
+            <Text style={styles.noResultsTitle}>
               No hospitals found
             </Text>
 
-            <Text
-              style={
-                styles.noResultsText
-              }
-            >
-              Try searching for another
-              hospital or clinic.
+            <Text style={styles.noResultsText}>
+              {locationStatus === 'granted'
+                ? 'No hospitals found in this area. Try moving the map or searching for a city.'
+                : 'Search for a city or move the map to find hospitals.'}
             </Text>
 
           </View>
@@ -843,11 +1342,7 @@ export default function HospitalsScreen() {
         )}
 
 
-        <View
-          style={{
-            height: 100,
-          }}
-        />
+        <View style={{ height: 100 }} />
 
       </ScrollView>
 
@@ -860,46 +1355,35 @@ export default function HospitalsScreen() {
         style={[
           styles.bottomNav,
 
-          isMobile &&
-            styles.bottomNavMobile,
+          isMobile && styles.bottomNavMobile,
         ]}
       >
 
         <BottomTab
           icon="home-outline"
           label="Home"
-          onPress={() =>
-            router.push('/home')
-          }
+          onPress={() => router.push('/home')}
         />
 
 
         <BottomTab
           icon="medical-outline"
           label="Medicines"
-          onPress={() =>
-            router.push('/medicines')
-          }
+          onPress={() => router.push('/medicines')}
         />
 
 
         <BottomTab
           icon="calendar-outline"
           label="Appointments"
-          onPress={() =>
-            router.push(
-              '/appointments'
-            )
-          }
+          onPress={() => router.push('/appointments')}
         />
 
 
         <BottomTab
           icon="person-outline"
           label="Profile"
-          onPress={() =>
-            router.push('/profile')
-          }
+          onPress={() => router.push('/profile')}
         />
 
       </View>
@@ -914,40 +1398,29 @@ export default function HospitalsScreen() {
           style={[
             styles.toast,
 
-            isMobile &&
-              styles.toastMobile,
+            isMobile && styles.toastMobile,
           ]}
         >
 
-          <View
-            style={
-              styles.toastIcon
-            }
-          >
+          <View style={styles.toastIcon}>
 
             <Ionicons
               name="checkmark"
               size={15}
-              color={
-                COLORS.white
-              }
+              color={COLORS.white}
             />
 
           </View>
 
 
-          <Text
-            style={
-              styles.toastText
-            }
-          >
+          <Text style={styles.toastText}>
             {toastMessage}
           </Text>
 
         </View>
       )}
 
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -976,8 +1449,7 @@ const BottomTab = ({
       style={[
         styles.bottomTab,
 
-        active &&
-          styles.bottomTabActive,
+        active && styles.bottomTabActive,
       ]}
     >
 
@@ -995,8 +1467,7 @@ const BottomTab = ({
         style={[
           styles.bottomTabText,
 
-          active &&
-            styles.bottomTabTextActive,
+          active && styles.bottomTabTextActive,
         ]}
       >
         {label}
@@ -1020,8 +1491,7 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
 
-    backgroundColor:
-      COLORS.background,
+    backgroundColor: COLORS.background,
   },
 
 
@@ -1051,13 +1521,11 @@ const styles = StyleSheet.create({
   topHeader: {
     height: 84,
 
-    backgroundColor:
-      COLORS.white,
+    backgroundColor: COLORS.white,
 
     borderBottomWidth: 1,
 
-    borderBottomColor:
-      COLORS.border,
+    borderBottomColor: COLORS.border,
 
     paddingHorizontal: 32,
 
@@ -1065,19 +1533,18 @@ const styles = StyleSheet.create({
 
     alignItems: 'center',
 
-    justifyContent:
-      'space-between',
+    justifyContent: 'space-between',
   },
 
 
   welcomeText: {
-    fontFamily:
-      'Inter_500Medium',
+    fontFamily: 'Inter_500Medium',
 
     fontSize: 17,
 
-    color:
-      COLORS.secondaryText,
+    color: COLORS.secondaryText,
+
+    flex: 1,
   },
 
 
@@ -1095,24 +1562,6 @@ const styles = StyleSheet.create({
   },
 
 
-  notificationDot: {
-    position: 'absolute',
-
-    right: 1,
-
-    top: 0,
-
-    width: 7,
-
-    height: 7,
-
-    borderRadius: 4,
-
-    backgroundColor:
-      COLORS.dangerRed,
-  },
-
-
   avatar: {
     width: 48,
 
@@ -1120,22 +1569,27 @@ const styles = StyleSheet.create({
 
     borderRadius: 24,
 
-    backgroundColor:
-      COLORS.primaryBlue,
+    backgroundColor: COLORS.primaryBlue,
 
     alignItems: 'center',
 
-    justifyContent:
-      'center',
+    justifyContent: 'center',
+
+    overflow: 'hidden',
+  },
+
+
+  avatarPhoto: {
+    width: 48,
+
+    height: 48,
   },
 
 
   avatarText: {
-    color:
-      COLORS.white,
+    color: COLORS.white,
 
-    fontFamily:
-      'Poppins_700Bold',
+    fontFamily: 'Poppins_700Bold',
 
     fontSize: 17,
   },
@@ -1151,13 +1605,11 @@ const styles = StyleSheet.create({
 
 
   pageTitle: {
-    fontFamily:
-      'Poppins_700Bold',
+    fontFamily: 'Poppins_700Bold',
 
     fontSize: 36,
 
-    color:
-      COLORS.mainText,
+    color: COLORS.mainText,
   },
 
 
@@ -1167,13 +1619,11 @@ const styles = StyleSheet.create({
 
 
   pageSubtitle: {
-    fontFamily:
-      'Inter_400Regular',
+    fontFamily: 'Inter_400Regular',
 
     fontSize: 18,
 
-    color:
-      COLORS.secondaryText,
+    color: COLORS.secondaryText,
 
     marginTop: 2,
   },
@@ -1191,21 +1641,21 @@ const styles = StyleSheet.create({
   searchContainer: {
     height: 57,
 
-    backgroundColor:
-      COLORS.white,
+    backgroundColor: COLORS.white,
 
     borderRadius: 7,
 
     borderWidth: 1,
 
-    borderColor:
-      COLORS.border,
+    borderColor: COLORS.border,
 
     flexDirection: 'row',
 
     alignItems: 'center',
 
     paddingHorizontal: 15,
+
+    gap: 8,
 
     marginBottom: 23,
 
@@ -1221,15 +1671,35 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
 
-    marginLeft: 11,
-
-    fontFamily:
-      'Inter_400Regular',
+    fontFamily: 'Inter_400Regular',
 
     fontSize: 16,
 
-    color:
-      COLORS.mainText,
+    color: COLORS.mainText,
+  },
+
+
+  searchGoButton: {
+    height: 40,
+
+    paddingHorizontal: 14,
+
+    borderRadius: 7,
+
+    backgroundColor: COLORS.primaryBlue,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+  },
+
+
+  searchGoText: {
+    fontFamily: 'Inter_700Bold',
+
+    fontSize: 14,
+
+    color: COLORS.white,
   },
 
 
@@ -1242,15 +1712,13 @@ const styles = StyleSheet.create({
 
     width: '100%',
 
-    backgroundColor:
-      COLORS.mapBackground,
+    backgroundColor: COLORS.mapBackground,
 
     borderRadius: 9,
 
     borderWidth: 1,
 
-    borderColor:
-      '#C4DFEA',
+    borderColor: '#C4DFEA',
 
     overflow: 'hidden',
 
@@ -1261,88 +1729,81 @@ const styles = StyleSheet.create({
 
 
   mapMobile: {
-    height: 270,
-  },
-
-  mapPattern: {
-    ...StyleSheet.absoluteFill,
-
-    opacity: 0.65,
-  },
-
-
-  mapLine: {
-    position: 'absolute',
-
-    width: 135,
-
-    height: 3,
-
-    backgroundColor:
-      'rgba(255,255,255,0.85)',
-
-    transform: [
-      {
-        rotate: '30deg',
-      },
-    ],
+    height: 300,
   },
 
 
   // ==================================================
-  // MAP MARKER
+  // MAP MARKERS (MapLibre Marker views)
   // ==================================================
 
-  mapMarker: {
-    position: 'absolute',
+  markerPin: {
+    width: 42,
 
-    width: 52,
+    height: 42,
 
-    height: 52,
+    borderRadius: 21,
 
-    borderRadius: 26,
+    backgroundColor: COLORS.primaryBlue,
 
-    backgroundColor:
-      COLORS.primaryBlue,
+    borderWidth: 2,
+
+    borderColor: COLORS.white,
 
     alignItems: 'center',
 
-    justifyContent:
-      'center',
+    justifyContent: 'center',
 
-    transform: [
-      {
-        translateX: -26,
-      },
-      {
-        translateY: -26,
-      },
-    ],
-
-    elevation: 7,
+    elevation: 5,
 
     shadowColor: '#000',
 
-    shadowOffset: {
-      width: 0,
+    shadowOffset: { width: 0, height: 3 },
 
-      height: 4,
-    },
+    shadowOpacity: 0.2,
 
-    shadowOpacity: 0.18,
-
-    shadowRadius: 6,
+    shadowRadius: 5,
   },
 
 
-  mapMarkerGreen: {
-    backgroundColor:
-      COLORS.primaryGreen,
+  markerPinSelected: {
+    backgroundColor: COLORS.primaryGreen,
+  },
+
+
+  mapFallback: {
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    gap: 8,
+
+    padding: 24,
+  },
+
+
+  mapFallbackTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+
+    fontSize: 17,
+
+    color: COLORS.mainText,
+  },
+
+
+  mapFallbackText: {
+    fontFamily: 'Inter_400Regular',
+
+    fontSize: 13,
+
+    color: COLORS.secondaryText,
+
+    textAlign: 'center',
   },
 
 
   // ==================================================
-  // LOCATION BADGE
+  // MAP OVERLAYS
   // ==================================================
 
   locationBadge: {
@@ -1352,8 +1813,9 @@ const styles = StyleSheet.create({
 
     left: 18,
 
-    backgroundColor:
-      COLORS.white,
+    right: 74,
+
+    backgroundColor: COLORS.white,
 
     borderRadius: 9,
 
@@ -1372,13 +1834,377 @@ const styles = StyleSheet.create({
 
 
   locationText: {
-    fontFamily:
-      'Inter_600SemiBold',
+    fontFamily: 'Inter_600SemiBold',
+
+    fontSize: 14,
+
+    color: COLORS.mainText,
+
+    flexShrink: 1,
+  },
+
+
+  recenterButton: {
+    position: 'absolute',
+
+    bottom: 18,
+
+    right: 18,
+
+    width: 44,
+
+    height: 44,
+
+    borderRadius: 22,
+
+    backgroundColor: COLORS.white,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    elevation: 4,
+  },
+
+
+  // ==================================================
+  // SELECTED HOSPITAL DETAILS CARD
+  // ==================================================
+
+  detailsCard: {
+    position: 'absolute',
+
+    top: 12,
+
+    left: 12,
+
+    right: 12,
+
+    backgroundColor: COLORS.white,
+
+    borderRadius: 12,
+
+    borderWidth: 1,
+
+    borderColor: COLORS.border,
+
+    padding: 14,
+
+    elevation: 6,
+
+    shadowColor: '#000',
+
+    shadowOffset: { width: 0, height: 3 },
+
+    shadowOpacity: 0.15,
+
+    shadowRadius: 8,
+  },
+
+
+  detailsCardHeader: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 10,
+  },
+
+
+  detailsCardIcon: {
+    width: 44,
+
+    height: 44,
+
+    borderRadius: 9,
+
+    backgroundColor: COLORS.lightGreen,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+  },
+
+
+  detailsCardTitleArea: {
+    flex: 1,
+  },
+
+
+  detailsCardName: {
+    fontFamily: 'Poppins_600SemiBold',
+
+    fontSize: 16,
+
+    color: COLORS.mainText,
+  },
+
+
+  detailsCardAddress: {
+    fontFamily: 'Inter_400Regular',
+
+    fontSize: 13,
+
+    color: COLORS.secondaryText,
+
+    marginTop: 8,
+  },
+
+
+  detailsCardMetaRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 14,
+
+    marginTop: 8,
+  },
+
+
+  detailsCardDistance: {
+    fontFamily: 'Inter_600SemiBold',
+
+    fontSize: 14,
+
+    color: COLORS.primaryBlue,
+  },
+
+
+  detailsCardActions: {
+    flexDirection: 'row',
+
+    gap: 10,
+
+    marginTop: 12,
+  },
+
+
+  detailsCardCall: {
+    height: 42,
+
+    paddingHorizontal: 18,
+
+    borderRadius: 7,
+
+    backgroundColor: '#E1F2F6',
+
+    borderWidth: 1,
+
+    borderColor: '#CDE3E8',
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    gap: 7,
+  },
+
+
+  detailsCardCallText: {
+    fontFamily: 'Inter_600SemiBold',
+
+    fontSize: 14,
+
+    color: COLORS.mainText,
+  },
+
+
+  detailsCardDirections: {
+    flex: 1,
+
+    height: 42,
+
+    borderRadius: 7,
+
+    backgroundColor: COLORS.primaryBlue,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    gap: 7,
+  },
+
+
+  detailsCardDirectionsFull: {
+    flex: 1,
+  },
+
+
+  detailsCardDirectionsText: {
+    fontFamily: 'Inter_700Bold',
+
+    fontSize: 14,
+
+    color: COLORS.white,
+  },
+
+
+  // ==================================================
+  // FACILITY TYPE (from OpenStreetMap tags)
+  // ==================================================
+
+  facilityTypeText: {
+    fontFamily: 'Inter_500Medium',
+
+    fontSize: 12,
+
+    color: COLORS.primaryGreen,
+  },
+
+
+  detailsCardFacilityType: {
+    fontFamily: 'Inter_500Medium',
+
+    fontSize: 13,
+
+    color: COLORS.primaryGreen,
+  },
+
+
+  hospitalType: {
+    fontFamily: 'Inter_500Medium',
+
+    fontSize: 13,
+
+    color: COLORS.primaryGreen,
+  },
+
+
+  phoneRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 6,
+
+    marginBottom: 16,
+  },
+
+
+  phoneText: {
+    fontFamily: 'Inter_400Regular',
 
     fontSize: 15,
 
-    color:
-      COLORS.mainText,
+    color: COLORS.secondaryText,
+  },
+
+
+  // ==================================================
+  // NOTICE / STATE BOXES
+  // ==================================================
+
+  noticeBox: {
+    backgroundColor: COLORS.lightBlue,
+
+    borderRadius: 9,
+
+    borderWidth: 1,
+
+    borderColor: '#C9E4F2',
+
+    padding: 14,
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 10,
+
+    marginBottom: 20,
+  },
+
+
+  noticeText: {
+    flex: 1,
+
+    fontFamily: 'Inter_400Regular',
+
+    fontSize: 13,
+
+    color: COLORS.mainText,
+  },
+
+
+  noticeAction: {
+    fontFamily: 'Inter_700Bold',
+
+    fontSize: 13,
+
+    color: COLORS.primaryBlue,
+  },
+
+
+  stateBox: {
+    backgroundColor: COLORS.white,
+
+    borderRadius: 10,
+
+    borderWidth: 1,
+
+    borderColor: COLORS.border,
+
+    paddingVertical: 56,
+
+    paddingHorizontal: 24,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+
+    gap: 10,
+  },
+
+
+  stateTitle: {
+    fontFamily: 'Poppins_600SemiBold',
+
+    fontSize: 18,
+
+    color: COLORS.mainText,
+  },
+
+
+  stateText: {
+    fontFamily: 'Inter_400Regular',
+
+    fontSize: 14,
+
+    color: COLORS.secondaryText,
+
+    textAlign: 'center',
+  },
+
+
+  retryButton: {
+    marginTop: 8,
+
+    height: 46,
+
+    paddingHorizontal: 28,
+
+    borderRadius: 8,
+
+    backgroundColor: COLORS.primaryBlue,
+
+    alignItems: 'center',
+
+    justifyContent: 'center',
+  },
+
+
+  retryButtonText: {
+    fontFamily: 'Inter_700Bold',
+
+    fontSize: 15,
+
+    color: COLORS.white,
   },
 
 
@@ -1416,15 +2242,13 @@ const styles = StyleSheet.create({
 
     minWidth: 290,
 
-    backgroundColor:
-      COLORS.white,
+    backgroundColor: COLORS.white,
 
     borderRadius: 9,
 
     borderWidth: 1,
 
-    borderColor:
-      COLORS.border,
+    borderColor: COLORS.border,
 
     padding: 24,
 
@@ -1441,6 +2265,13 @@ const styles = StyleSheet.create({
   },
 
 
+  hospitalCardSelected: {
+    borderColor: COLORS.primaryBlue,
+
+    borderWidth: 2,
+  },
+
+
   // ==================================================
   // HOSPITAL HEADER
   // ==================================================
@@ -1450,7 +2281,7 @@ const styles = StyleSheet.create({
 
     alignItems: 'center',
 
-    marginBottom: 17,
+    marginBottom: 14,
   },
 
 
@@ -1461,13 +2292,11 @@ const styles = StyleSheet.create({
 
     borderRadius: 9,
 
-    backgroundColor:
-      COLORS.lightGreen,
+    backgroundColor: COLORS.lightGreen,
 
     alignItems: 'center',
 
-    justifyContent:
-      'center',
+    justifyContent: 'center',
 
     marginRight: 14,
   },
@@ -1479,13 +2308,11 @@ const styles = StyleSheet.create({
 
 
   hospitalName: {
-    fontFamily:
-      'Poppins_700Bold',
+    fontFamily: 'Poppins_700Bold',
 
     fontSize: 19,
 
-    color:
-      COLORS.mainText,
+    color: COLORS.mainText,
 
     marginBottom: 3,
   },
@@ -1496,36 +2323,21 @@ const styles = StyleSheet.create({
   },
 
 
+  hospitalMetaRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 12,
+  },
+
+
   distance: {
-    fontFamily:
-      'Inter_600SemiBold',
+    fontFamily: 'Inter_600SemiBold',
 
-    fontSize: 15,
-
-    color:
-      COLORS.primaryBlue,
-  },
-
-
-  // ==================================================
-  // SPECIALTY
-  // ==================================================
-
-  specialty: {
-    fontFamily:
-      'Inter_400Regular',
-
-    fontSize: 16,
-
-    color:
-      COLORS.mainText,
-
-    marginBottom: 7,
-  },
-
-
-  specialtyMobile: {
     fontSize: 14,
+
+    color: COLORS.primaryBlue,
   },
 
 
@@ -1545,13 +2357,11 @@ const styles = StyleSheet.create({
 
 
   addressText: {
-    fontFamily:
-      'Inter_400Regular',
+    fontFamily: 'Inter_400Regular',
 
     fontSize: 15,
 
-    color:
-      COLORS.secondaryText,
+    color: COLORS.secondaryText,
 
     flex: 1,
   },
@@ -1580,20 +2390,17 @@ const styles = StyleSheet.create({
 
     borderRadius: 7,
 
-    backgroundColor:
-      '#E1F2F6',
+    backgroundColor: '#E1F2F6',
 
     borderWidth: 1,
 
-    borderColor:
-      '#CDE3E8',
+    borderColor: '#CDE3E8',
 
     flexDirection: 'row',
 
     alignItems: 'center',
 
-    justifyContent:
-      'center',
+    justifyContent: 'center',
 
     gap: 8,
   },
@@ -1606,15 +2413,13 @@ const styles = StyleSheet.create({
 
     borderRadius: 7,
 
-    backgroundColor:
-      COLORS.primaryBlue,
+    backgroundColor: COLORS.primaryBlue,
 
     flexDirection: 'row',
 
     alignItems: 'center',
 
-    justifyContent:
-      'center',
+    justifyContent: 'center',
 
     gap: 8,
 
@@ -1628,24 +2433,20 @@ const styles = StyleSheet.create({
 
 
   callButtonText: {
-    fontFamily:
-      'Inter_600SemiBold',
+    fontFamily: 'Inter_600SemiBold',
 
     fontSize: 15,
 
-    color:
-      COLORS.mainText,
+    color: COLORS.mainText,
   },
 
 
   directionButtonText: {
-    fontFamily:
-      'Inter_700Bold',
+    fontFamily: 'Inter_700Bold',
 
     fontSize: 15,
 
-    color:
-      COLORS.white,
+    color: COLORS.white,
   },
 
 
@@ -1654,48 +2455,45 @@ const styles = StyleSheet.create({
   // ==================================================
 
   noResults: {
-    backgroundColor:
-      COLORS.white,
+    backgroundColor: COLORS.white,
 
     borderRadius: 10,
 
     borderWidth: 1,
 
-    borderColor:
-      COLORS.border,
+    borderColor: COLORS.border,
 
     paddingVertical: 70,
 
     alignItems: 'center',
 
-    justifyContent:
-      'center',
+    justifyContent: 'center',
   },
 
 
   noResultsTitle: {
-    fontFamily:
-      'Poppins_600SemiBold',
+    fontFamily: 'Poppins_600SemiBold',
 
     fontSize: 20,
 
-    color:
-      COLORS.mainText,
+    color: COLORS.mainText,
 
     marginTop: 12,
   },
 
 
   noResultsText: {
-    fontFamily:
-      'Inter_400Regular',
+    fontFamily: 'Inter_400Regular',
 
     fontSize: 14,
 
-    color:
-      COLORS.secondaryText,
+    color: COLORS.secondaryText,
 
     marginTop: 5,
+
+    textAlign: 'center',
+
+    paddingHorizontal: 30,
   },
 
 
@@ -1706,20 +2504,17 @@ const styles = StyleSheet.create({
   bottomNav: {
     height: 72,
 
-    backgroundColor:
-      COLORS.white,
+    backgroundColor: COLORS.white,
 
     borderTopWidth: 1,
 
-    borderTopColor:
-      COLORS.border,
+    borderTopColor: COLORS.border,
 
     flexDirection: 'row',
 
     alignItems: 'center',
 
-    justifyContent:
-      'space-around',
+    justifyContent: 'space-around',
 
     paddingHorizontal: 25,
   },
@@ -1737,8 +2532,7 @@ const styles = StyleSheet.create({
 
     alignItems: 'center',
 
-    justifyContent:
-      'center',
+    justifyContent: 'center',
 
     gap: 3,
 
@@ -1747,30 +2541,25 @@ const styles = StyleSheet.create({
 
 
   bottomTabActive: {
-    backgroundColor:
-      '#E5F2F9',
+    backgroundColor: '#E5F2F9',
 
     borderRadius: 10,
   },
 
 
   bottomTabText: {
-    fontFamily:
-      'Inter_500Medium',
+    fontFamily: 'Inter_500Medium',
 
     fontSize: 11,
 
-    color:
-      COLORS.secondaryText,
+    color: COLORS.secondaryText,
   },
 
 
   bottomTabTextActive: {
-    fontFamily:
-      'Inter_700Bold',
+    fontFamily: 'Inter_700Bold',
 
-    color:
-      COLORS.primaryBlue,
+    color: COLORS.primaryBlue,
   },
 
 
@@ -1785,8 +2574,7 @@ const styles = StyleSheet.create({
 
     alignSelf: 'center',
 
-    backgroundColor:
-      COLORS.white,
+    backgroundColor: COLORS.white,
 
     borderRadius: 11,
 
@@ -1802,11 +2590,7 @@ const styles = StyleSheet.create({
 
     shadowColor: '#000',
 
-    shadowOffset: {
-      width: 0,
-
-      height: 4,
-    },
+    shadowOffset: { width: 0, height: 4 },
 
     shadowOpacity: 0.15,
 
@@ -1836,23 +2620,19 @@ const styles = StyleSheet.create({
 
     borderRadius: 12,
 
-    backgroundColor:
-      '#1D1D1D',
+    backgroundColor: '#1D1D1D',
 
     alignItems: 'center',
 
-    justifyContent:
-      'center',
+    justifyContent: 'center',
   },
 
 
   toastText: {
-    fontFamily:
-      'Inter_600SemiBold',
+    fontFamily: 'Inter_600SemiBold',
 
     fontSize: 14,
 
-    color:
-      COLORS.mainText,
+    color: COLORS.mainText,
   },
 });
