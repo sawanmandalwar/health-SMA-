@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
+import { formatDisplayTime } from '../utils/format-display-time';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -1300,7 +1301,7 @@ const [appointments, setAppointments] =
             <Text
               style={styles.detailText}
             >
-              {appointment.time}
+              {formatDisplayTime(appointment.time)}
             </Text>
           </View>
 

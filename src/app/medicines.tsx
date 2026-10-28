@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
+import { formatDisplayTime } from '../utils/format-display-time';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -1427,7 +1428,7 @@ const deleteMedicine = (id: string) => {
               styles.medicineDetails
             }
           >
-            {medicine.time}
+            {formatDisplayTime(medicine.time)}
             {' Â· '}
             {medicine.timing}
           </Text>
@@ -1453,7 +1454,7 @@ const deleteMedicine = (id: string) => {
                         styles.doseTime
                       }
                     >
-                      {dose.time}
+                      {formatDisplayTime(dose.time)}
 
                       {dose.quantity > 1
                         ? ` Â· ${dose.quantity} doses`

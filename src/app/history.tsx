@@ -7,6 +7,7 @@ import AppHeader from '../components/AppHeader';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
+import { formatDisplayTime } from '../utils/format-display-time';
 
 import {
   View,
@@ -406,7 +407,7 @@ export default function HistoryScreen() {
               styles.time
             }
           >
-            {item.time}
+            {formatDisplayTime(item.time)}
           </Text>
 
         </View>

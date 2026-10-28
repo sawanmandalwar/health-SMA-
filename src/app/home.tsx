@@ -27,6 +27,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
+import { formatDisplayTime } from '../utils/format-display-time';
 
 import { router, useFocusEffect } from 'expo-router';
 import { apiFetch, parseJson } from '../services/api';
@@ -1053,8 +1054,8 @@ const nextAppointmentBadgeText = (() => {
                         dose={medicine.dosage}
                         time={
                           medicine.timing
-                            ? `${medicine.time} · ${medicine.timing}`
-                            : medicine.time
+                            ? `${formatDisplayTime(medicine.time)} · ${medicine.timing}`
+                            : formatDisplayTime(medicine.time)
                         }
                         status={medicine.status}
                         updating={updatingMedicineId === medicine.id}
@@ -1264,7 +1265,7 @@ const nextAppointmentBadgeText = (() => {
 
                           <Text style={styles.appointmentDate}>
 
-                            {nextAppointment.date} · {nextAppointment.time}
+                            {nextAppointment.date} · {formatDisplayTime(nextAppointment.time)}
 
                           </Text>
 
