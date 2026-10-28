@@ -123,10 +123,6 @@ function parseDisplayTime(value: string): { hours: number; minutes: number } | n
   return null;
 }
 
-function toInputTime(value: { hours: number; minutes: number }): string {
-  return `${pad(value.hours)}:${pad(value.minutes)}`;
-}
-
 function formatDisplayTime(value: { hours: number; minutes: number }): string {
   const period = value.hours >= 12 ? 'PM' : 'AM';
   let hours = value.hours % 12;
@@ -135,12 +131,10 @@ function formatDisplayTime(value: { hours: number; minutes: number }): string {
   return `${hours}:${pad(value.minutes)} ${period}`;
 }
 
-function fromInputTime(value: string): { hours: number; minutes: number } | null {
-  const match = value.match(/^(\d{2}):(\d{2})$/);
-  if (!match) return null;
+const MINUTE_STEPS = Array.from({ length: 12 }, (_, index) => index * 5);
 
-  return { hours: Number(match[1]), minutes: Number(match[2]) };
-}
+const FONT_FAMILY =
+  "Inter_400Regular, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
 const BASE_STYLE: CSSProperties = {
   boxSizing: 'border-box',
@@ -153,8 +147,60 @@ const BASE_STYLE: CSSProperties = {
   backgroundColor: '#E7F3F5',
   color: '#1D2B33',
   fontSize: 15,
-  fontFamily:
-    "Inter_400Regular, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  fontFamily: FONT_FAMILY,
+};
+
+const TIME_PARTS_STYLE: CSSProperties = {
+  boxSizing: 'border-box',
+  width: '100%',
+  minWidth: 0,
+  minHeight: 48,
+  padding: '0 8px',
+  borderRadius: 7,
+  border: '1px solid #C9E0E5',
+  backgroundColor: '#E7F3F5',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+};
+
+const TIME_SELECT_STYLE: CSSProperties = {
+  border: 'none',
+  outline: 'none',
+  background: 'transparent',
+  color: '#1D2B33',
+  fontSize: 15,
+  fontFamily: FONT_FAMILY,
+  height: 44,
+  padding: '0 2px',
+  cursor: 'pointer',
+};
+
+const PERIOD_GROUP_STYLE: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 3,
+  marginLeft: 'auto',
+};
+
+const PERIOD_BUTTON_STYLE: CSSProperties = {
+  minWidth: 40,
+  height: 34,
+  borderRadius: 6,
+  border: '1px solid #C9E0E5',
+  backgroundColor: '#FFFFFF',
+  color: '#1D2B33',
+  fontSize: 13,
+  fontWeight: 600,
+  fontFamily: FONT_FAMILY,
+  cursor: 'pointer',
+};
+
+const PERIOD_BUTTON_ACTIVE_STYLE: CSSProperties = {
+  ...PERIOD_BUTTON_STYLE,
+  borderColor: '#1E76B6',
+  backgroundColor: '#1E76B6',
+  color: '#FFFFFF',
 };
 
 export default function WebDateTimeInput({
@@ -166,18 +212,106 @@ export default function WebDateTimeInput({
   disabled,
   style,
 }: Props) {
-  const inputValue =
-    mode === 'date'
-      ? (() => {
-          const parsed = parseDisplayDate(value);
-          return parsed ? toInputDate(parsed) : '';
-        })()
-      : (() => {
-          const parsed = parseDisplayTime(value);
-          return parsed ? toInputTime(parsed) : '';
-        })();
+  if (mode === 'time') {
+    const parsed = parseDisplayTime(value);
+    const hours24 = parsed ? parsed.hours : null;
+    const minutes = parsed ? parsed.minutes : null;
+    const period: 'AM' | 'PM' = hours24 !== null && hours24 >= 12 ? 'PM' : 'AM';
+    const hour12 =
+      hours24 === null ? null : hours24 % 12 === 0 ? 12 : hours24 % 12;
 
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const minuteOptions = minutes !== null && !MINUTE_STEPS.includes(minutes)
+      ? [...MINUTE_STEPS, minutes].sort((a, b) => a - b)
+      : MINUTE_STEPS;
+
+    const commit = (
+      nextHour12: number,
+      nextMinutes: number,
+      nextPeriod: 'AM' | 'PM',
+    ) => {
+      const baseHour = nextHour12 % 12;
+      const nextHours24 =
+        nextPeriod === 'PM' ? baseHour + 12 : baseHour;
+
+      onChange(formatDisplayTime({ hours: nextHours24, minutes: nextMinutes }));
+    };
+
+    return (
+      <div
+        style={{ ...TIME_PARTS_STYLE, ...style, opacity: disabled ? 0.6 : 1 }}
+      >
+        <select
+          aria-label={ariaLabel ? `${ariaLabel} hour` : 'Hour'}
+          value={hour12 === null ? '' : String(hour12)}
+          disabled={disabled}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (!next) return;
+            commit(Number(next), minutes ?? 0, period);
+          }}
+          style={TIME_SELECT_STYLE}
+        >
+          {hour12 === null && <option value="">HH</option>}
+
+          {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
+            <option key={hour} value={hour}>
+              {hour}
+            </option>
+          ))}
+        </select>
+
+        <span style={{ color: '#1D2B33', fontSize: 15, fontWeight: 600 }}>
+          :
+        </span>
+
+        <select
+          aria-label={ariaLabel ? `${ariaLabel} minutes` : 'Minutes'}
+          value={minutes === null ? '' : pad(minutes)}
+          disabled={disabled}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (!next) return;
+            commit(hour12 ?? 12, Number(next), period);
+          }}
+          style={TIME_SELECT_STYLE}
+        >
+          {minutes === null && <option value="">MM</option>}
+
+          {minuteOptions.map((minute) => (
+            <option key={minute} value={pad(minute)}>
+              {pad(minute)}
+            </option>
+          ))}
+        </select>
+
+        <div style={PERIOD_GROUP_STYLE} role="group" aria-label="AM or PM">
+          {(['AM', 'PM'] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              disabled={disabled}
+              aria-pressed={parsed ? period === option : false}
+              onClick={() => commit(hour12 ?? 12, minutes ?? 0, option)}
+              style={
+                parsed && period === option
+                  ? PERIOD_BUTTON_ACTIVE_STYLE
+                  : PERIOD_BUTTON_STYLE
+              }
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const dateValue = (() => {
+    const parsed = parseDisplayDate(value);
+    return parsed ? toInputDate(parsed) : '';
+  })();
+
+  const handleDateChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const next = event.target.value;
 
     if (!next) {
@@ -185,21 +319,15 @@ export default function WebDateTimeInput({
       return;
     }
 
-    if (mode === 'date') {
-      const parsed = fromInputDate(next);
-      if (parsed) onChange(formatDisplayDate(parsed));
-      return;
-    }
-
-    const parsed = fromInputTime(next);
-    if (parsed) onChange(formatDisplayTime(parsed));
+    const parsed = fromInputDate(next);
+    if (parsed) onChange(formatDisplayDate(parsed));
   };
 
   return (
     <input
-      type={mode}
-      value={inputValue}
-      onChange={handleChange}
+      type="date"
+      value={dateValue}
+      onChange={handleDateChange}
       placeholder={placeholder}
       aria-label={ariaLabel}
       disabled={disabled}
