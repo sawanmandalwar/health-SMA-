@@ -90,7 +90,7 @@ export function useHeaderNotifications() {
         const response = await apiFetch(
           `/api/notifications/${notificationId}/read`,
           {
-            method: 'PUT',
+            method: 'PATCH',
             headers: { Authorization: `Bearer ${token}` },
           },
         );

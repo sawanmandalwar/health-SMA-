@@ -10,12 +10,13 @@ import {
   Modal,
   TextInput,
   Switch,
-  useWindowDimensions,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -49,6 +50,7 @@ import {
 import { apiFetch, parseJson } from '../services/api';
 
 import AppHeader from '../components/AppHeader';
+import WebDateTimeInput from '../components/web-date-time-input';
 
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
@@ -304,6 +306,10 @@ type Appointment = {
   reminder: boolean;
 
   status: 'Upcoming' | 'Previous';
+
+  // Shared by every time slot created from one "Add" submission; lets the
+  // edit modal manage the whole set of timings for the same visit.
+  groupId?: string | null;
 };
 
 
@@ -369,7 +375,7 @@ function BottomTab({
 export default function AppointmentsScreen() {
   const router = useRouter();
 
-  const { width } = useWindowDimensions();
+  const { width } = useResponsiveDimensions();
 
   const isMobile = width < 600;
 
@@ -527,6 +533,7 @@ const [appointments, setAppointments] =
           reason: item.reason,
           reminder: item.reminder,
           status: item.status,
+          groupId: item.groupId || null,
         }));
 
       setAppointments(serverAppointments);
@@ -608,9 +615,32 @@ const [appointments, setAppointments] =
 
     setDate(appointment.date);
 
-    setTimeSlots([
-      { id: appointment.id, time: appointment.time },
-    ]);
+    // Prefill every time slot of the same visit (all documents created
+    // together share a groupId), sorted by time of day.
+    const groupMembers = appointment.groupId
+      ? appointments.filter(
+          (item) =>
+            item.groupId === appointment.groupId &&
+            item.id !== appointment.id
+        )
+      : [];
+
+    const sortKey = (value: string) => {
+      const parsed = parsePickerTime(value);
+      return parsed.getHours() * 60 + parsed.getMinutes();
+    };
+
+    const slots = [
+      { time: appointment.time },
+      ...groupMembers.map((item) => ({ time: item.time })),
+    ].sort((a, b) => sortKey(a.time) - sortKey(b.time));
+
+    setTimeSlots(
+      slots.map((slot, index) => ({
+        id: index === 0 ? appointment.id : '',
+        time: slot.time,
+      }))
+    );
 
     setReason(appointment.reason);
 
@@ -791,21 +821,31 @@ const [appointments, setAppointments] =
           );
         }
 
-        // Schedule/update reminder for the updated appointment.
-        if (data.appointment) {
+        // Schedule/update reminders for the whole updated visit (the
+        // edited slot plus any extra timings created by this edit).
+        const updatedAppointments =
+          Array.isArray(data.appointments) && data.appointments.length > 0
+            ? data.appointments
+            : data.appointment
+            ? [data.appointment]
+            : [];
+
+        if (updatedAppointments.length > 0) {
           const reminderAllowed = await requestNotificationPermission();
 
           try {
-            await replaceAppointmentReminder({
-              id: data.appointment._id,
-              doctor: data.appointment.doctor,
-              specialty: data.appointment.specialty,
-              hospital: data.appointment.hospital,
-              date: data.appointment.date,
-              time: data.appointment.time,
-              reminder: data.appointment.reminder,
-              status: data.appointment.status,
-            });
+            for (const updated of updatedAppointments) {
+              await replaceAppointmentReminder({
+                id: updated._id,
+                doctor: updated.doctor,
+                specialty: updated.specialty,
+                hospital: updated.hospital,
+                date: updated.date,
+                time: updated.time,
+                reminder: updated.reminder,
+                status: updated.status,
+              });
+            }
           } catch (reminderError) {
             console.error(
               'Appointment reminder scheduling failed:',
@@ -1688,7 +1728,10 @@ const [appointments, setAppointments] =
         {/* ========================================== */}
 
         <View
-          style={styles.bottomNav}
+          style={[
+            styles.bottomNav,
+            isDesktop && styles.bottomNavDesktop,
+          ]}
         >
 
           <BottomTab
@@ -1791,6 +1834,17 @@ const [appointments, setAppointments] =
               styles.modalOverlay
             }
           >
+
+            <KeyboardAvoidingView
+              behavior={
+                Platform.OS === 'ios'
+                  ? 'padding'
+                  : undefined
+              }
+              style={
+                styles.keyboardAvoid
+              }
+            >
 
             <View
               style={[
@@ -2011,16 +2065,17 @@ const [appointments, setAppointments] =
 
 
                   {Platform.OS === 'web' ? (
-                    <TextInput
+                    <WebDateTimeInput
+                      mode="date"
                       value={date}
-                      onChangeText={setDate}
-                      placeholder="e.g. 28 September 2026"
-                      placeholderTextColor={
-                        COLORS.secondaryText
-                      }
-                      style={
-                        styles.input
-                      }
+                      onChange={setDate}
+                      ariaLabel="Appointment date"
+                      placeholder="Select date"
+                      style={{
+                        minHeight: 50,
+                        backgroundColor: '#E1F1F5',
+                        borderColor: '#C6DDE3',
+                      }}
                     />
                   ) : (
                     <Pressable
@@ -2100,23 +2155,20 @@ const [appointments, setAppointments] =
                     >
 
                       {Platform.OS === 'web' ? (
-                        <TextInput
+                        <WebDateTimeInput
+                          mode="time"
                           value={row.time}
-
-                          onChangeText={(value) =>
+                          onChange={(value) =>
                             updateTimeSlotRow(index, value)
                           }
-
-                          placeholder="e.g. 10:00 AM"
-
-                          placeholderTextColor={
-                            COLORS.secondaryText
-                          }
-
-                          style={[
-                            styles.input,
-                            styles.scheduleTimeInput,
-                          ]}
+                          placeholder="Select time"
+                          style={{
+                            flex: 1,
+                            width: 'auto',
+                            minHeight: 50,
+                            backgroundColor: '#E1F1F5',
+                            borderColor: '#C6DDE3',
+                          }}
                         />
                       ) : (
                         <Pressable
@@ -2378,6 +2430,8 @@ const [appointments, setAppointments] =
               </View>
 
             </View>
+
+            </KeyboardAvoidingView>
 
           </View>
 
@@ -3229,6 +3283,31 @@ const styles = StyleSheet.create({
   },
 
 
+  bottomNavDesktop: {
+    width: '100%',
+
+    maxWidth: 720,
+
+    alignSelf: 'center',
+
+    height: 64,
+
+    marginTop: 10,
+
+    marginBottom: 14,
+
+    paddingHorizontal: 12,
+
+    borderTopWidth: 0,
+
+    borderWidth: 1,
+
+    borderColor: COLORS.border,
+
+    borderRadius: 16,
+  },
+
+
   bottomTab: {
     height: 48,
 
@@ -3373,6 +3452,14 @@ const styles = StyleSheet.create({
       'center',
 
     padding: 20,
+  },
+
+
+  // Keeps the modal header (close button) visible while the keyboard is open.
+  keyboardAvoid: {
+    width: '100%',
+
+    alignItems: 'center',
   },
 
 

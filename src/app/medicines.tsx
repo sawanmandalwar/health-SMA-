@@ -8,11 +8,13 @@ import {
   Pressable,
   TextInput,
   Modal,
-  useWindowDimensions,
+  Platform,
   Alert,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -22,6 +24,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { apiFetch, parseJson } from '../services/api';
 
 import AppHeader from '../components/AppHeader';
+import WebDateTimeInput from '../components/web-date-time-input';
 
 import {
   Poppins_400Regular,
@@ -44,6 +47,158 @@ import {
   isValidMedicineTime,
   requestNotificationPermission,
 } from '../services/notificationService';
+
+import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+
+// ======================================================
+// NATIVE DATE / TIME PICKERS (same pattern as Appointments)
+// ======================================================
+
+// The native date/time picker only ships for iOS/Android. On web the raw
+// import would fail with "TurboModuleRegistry.getEnforcing(...)", so the
+// module is required lazily and the form falls back to text inputs.
+type NativeDateTimePickerProps = {
+  value: Date;
+  mode: 'date' | 'time';
+  display?: 'default' | 'spinner';
+  is24Hour?: boolean;
+  maximumDate?: Date;
+  onChange: (event: DateTimePickerEvent, selected?: Date) => void;
+};
+
+let NativeDateTimePicker: React.ComponentType<NativeDateTimePickerProps> | null =
+  null;
+
+if (Platform.OS !== 'web') {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  NativeDateTimePicker = require('@react-native-community/datetimepicker')
+    .default as React.ComponentType<NativeDateTimePickerProps>;
+}
+
+const isDateTimePickerSupported = NativeDateTimePicker !== null;
+
+// Date format stored by the backend: "24 September 2026".
+// The pickers below always produce this shape.
+const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+const MONTH_NAME_MAP: Record<string, number> = MONTH_NAMES.reduce(
+  (map, month, index) => {
+    map[month.toLowerCase()] = index + 1;
+    map[month.toLowerCase().slice(0, 3)] = index + 1;
+    return map;
+  },
+  {} as Record<string, number>
+);
+
+function formatPickerDate(value: Date): string {
+  return `${value.getDate()} ${MONTH_NAMES[value.getMonth()]} ${value.getFullYear()}`;
+}
+
+function formatPickerTime(value: Date): string {
+  let hours = value.getHours();
+  const minutes = value.getMinutes();
+  const period = hours >= 12 ? 'PM' : 'AM';
+
+  hours = hours % 12;
+
+  if (hours === 0) {
+    hours = 12;
+  }
+
+  const minuteText =
+    minutes < 10 ? `0${minutes}` : String(minutes);
+
+  return `${hours}:${minuteText} ${period}`;
+}
+
+// Parse existing medicine strings ("24 September 2026",
+// "2026-09-24", "24/09/2026") back into a Date for the picker.
+// Falls back to now when nothing can be understood.
+function parsePickerDate(value: string): Date {
+  const text = String(value || '').trim();
+
+  if (!text) return new Date();
+
+  const named = text.match(
+    /^(\d{1,2})\s+([A-Za-z.]+),?\s+(\d{4})$/
+  );
+
+  if (named) {
+    const month = MONTH_NAME_MAP[named[2].toLowerCase().replace(/\./g, '')];
+
+    if (month) {
+      const parsed = new Date(Number(named[3]), month - 1, Number(named[1]));
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+  }
+
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+  if (iso) {
+    const parsed = new Date(
+      Number(iso[1]),
+      Number(iso[2]) - 1,
+      Number(iso[3])
+    );
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const numeric = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (numeric) {
+    const parsed = new Date(
+      Number(numeric[3]),
+      Number(numeric[2]) - 1,
+      Number(numeric[1])
+    );
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+
+  const fallback = new Date(text);
+  return Number.isNaN(fallback.getTime()) ? new Date() : fallback;
+}
+
+// Parse "8:00 AM" / "20:30" into a Date used for the time picker.
+function parsePickerTime(value: string): Date {
+  const today = new Date();
+  const text = String(value || '').trim();
+
+  const twelveHour = text.match(
+    /^(\d{1,2}):(\d{2})\s*([AaPp])\.?\s?[Mm]\.?$/
+  );
+
+  if (twelveHour) {
+    let hours = Number(twelveHour[1]);
+    const minutes = Number(twelveHour[2]);
+    const period = twelveHour[3].toUpperCase();
+
+    if (period === 'A' && hours === 12) hours = 0;
+    else if (period === 'P' && hours !== 12) hours += 12;
+
+    today.setHours(hours, minutes, 0, 0);
+    return today;
+  }
+
+  const twentyFour = text.match(/^(\d{1,2}):(\d{2})$/);
+  if (twentyFour) {
+    today.setHours(Number(twentyFour[1]), Number(twentyFour[2]), 0, 0);
+    return today;
+  }
+
+  today.setHours(10, 0, 0, 0);
+  return today;
+}
 
 
 // ======================================================
@@ -239,7 +394,7 @@ export default function MedicinesScreen() {
   const router = useRouter();
 
   const { width } =
-    useWindowDimensions();
+    useResponsiveDimensions();
 
 
   // ====================================================
@@ -325,6 +480,17 @@ export default function MedicinesScreen() {
 
   const [endDate, setEndDate] =
     useState('');
+
+
+  // Native date/time picker state (mirrors the Appointments form).
+
+  // Which date field the native picker is open for: start, end, or none.
+  const [datePickerTarget, setDatePickerTarget] =
+    useState<'start' | 'end' | null>(null);
+
+  // Which schedule row's time picker is open (row index) or none.
+  const [timePickerSlotIndex, setTimePickerSlotIndex] =
+    useState<number | null>(null);
 
 
   // Refill / stock form fields
@@ -453,6 +619,10 @@ export default function MedicinesScreen() {
 
     setEndDate('');
 
+    setDatePickerTarget(null);
+
+    setTimePickerSlotIndex(null);
+
     setInitialQuantity('');
 
     setStockUnit('');
@@ -526,6 +696,10 @@ export default function MedicinesScreen() {
     setEndDate(
       medicine.endDate
     );
+
+    setDatePickerTarget(null);
+
+    setTimePickerSlotIndex(null);
 
     setInitialQuantity(
       medicine.initialQuantity !== null
@@ -601,6 +775,74 @@ export default function MedicinesScreen() {
 
 
   // ====================================================
+  // DATE / TIME PICKERS (same pattern as Appointments)
+  // ====================================================
+
+  const openDatePicker = (target: 'start' | 'end') => {
+    setDatePickerTarget((current) =>
+      current === target ? null : target
+    );
+  };
+
+  const handleStartDateSelected = (
+    event: DateTimePickerEvent,
+    selected?: Date
+  ) => {
+    setDatePickerTarget(null);
+
+    if (event.type === 'dismissed' || !selected) {
+      return;
+    }
+
+    setStartDate(formatPickerDate(selected));
+  };
+
+  const handleEndDateSelected = (
+    event: DateTimePickerEvent,
+    selected?: Date
+  ) => {
+    setDatePickerTarget(null);
+
+    if (event.type === 'dismissed' || !selected) {
+      return;
+    }
+
+    setEndDate(formatPickerDate(selected));
+  };
+
+  const openTimePicker = (index: number) => {
+    setTimePickerSlotIndex((current) =>
+      current === index ? null : index
+    );
+  };
+
+  const handleTimeSelected = (
+    event: DateTimePickerEvent,
+    selected?: Date
+  ) => {
+    setTimePickerSlotIndex(null);
+
+    if (event.type === 'dismissed' || !selected) {
+      return;
+    }
+
+    const index = timePickerSlotIndex;
+
+    if (index === null) {
+      return;
+    }
+
+    setScheduleRows((rows) =>
+      rows.map((row, rowIndex) =>
+        rowIndex === index
+          ? { ...row, time: formatPickerTime(selected) }
+          : row
+      )
+    );
+  };
+
+
+  // ====================================================
   // SAVE / UPDATE MEDICINE
   // ====================================================
 
@@ -638,6 +880,24 @@ export default function MedicinesScreen() {
         `"${invalidTime.time}" is not a valid time. Use a format such as 8:00 AM or 20:00.`
       );
       return;
+    }
+
+    // Keep the course ordered: end date cannot be before the start date.
+    if (startDate.trim() && endDate.trim()) {
+      const start = parsePickerDate(startDate);
+      const end = parsePickerDate(endDate);
+
+      if (
+        !Number.isNaN(start.getTime()) &&
+        !Number.isNaN(end.getTime()) &&
+        end.getTime() < start.getTime()
+      ) {
+        Alert.alert(
+          'Invalid Dates',
+          'End date must be the same day as or after the start date.'
+        );
+        return;
+      }
     }
 
     // Ask for notification permission up front so a denial can be surfaced
@@ -2052,30 +2312,60 @@ const deleteMedicine = (id: string) => {
                       }
                     >
 
-                      <TextInput
-                        value={
-                          row.time
-                        }
+                      {Platform.OS === 'web' ? (
+                        <WebDateTimeInput
+                          mode="time"
+                          value={row.time}
+                          onChange={(value) =>
+                            updateScheduleRow(
+                              index,
+                              'time',
+                              value
+                            )
+                          }
+                          placeholder="Select time"
+                          style={{
+                            flex: 1,
+                            width: 'auto',
+                            minHeight: 52,
+                            backgroundColor: '#E7F3F5',
+                            borderColor: '#C9E0E5',
+                          }}
+                        />
+                      ) : (
+                        <Pressable
+                          onPress={() => openTimePicker(index)}
 
-                        onChangeText={(value) =>
-                          updateScheduleRow(
-                            index,
-                            'time',
-                            value
-                          )
-                        }
+                          style={[
+                            styles.input,
+                            styles.scheduleTimeInput,
+                            styles.pickerField,
+                          ]}
+                        >
 
-                        placeholder="e.g. 8:00 AM"
+                          <Text
+                            style={[
+                              styles.pickerFieldText,
 
-                        placeholderTextColor={
-                          COLORS.secondaryText
-                        }
+                              !row.time &&
+                                styles.pickerFieldPlaceholder,
+                            ]}
+                          >
+                            {row.time || 'Select time'}
+                          </Text>
 
-                        style={[
-                          styles.input,
-                          styles.scheduleTimeInput,
-                        ]}
-                      />
+                          <Ionicons
+                            name="time-outline"
+                            size={20}
+                            color={
+                              row.time
+                                ? COLORS.primaryBlue
+                                : COLORS.secondaryText
+                            }
+                          />
+
+                        </Pressable>
+                      )}
 
 
                       <TextInput
@@ -2129,6 +2419,25 @@ const deleteMedicine = (id: string) => {
                     </View>
                   )
                 )}
+
+
+                {timePickerSlotIndex !== null &&
+                  isDateTimePickerSupported &&
+                  NativeDateTimePicker && (
+                    <NativeDateTimePicker
+                      value={parsePickerTime(
+                        scheduleRows[timePickerSlotIndex]?.time || ''
+                      )}
+                      mode="time"
+                      display={
+                        Platform.OS === 'ios'
+                          ? 'spinner'
+                          : 'default'
+                      }
+                      is24Hour={false}
+                      onChange={handleTimeSelected}
+                    />
+                  )}
 
 
                 <Pressable
@@ -2225,25 +2534,71 @@ const deleteMedicine = (id: string) => {
                 </Text>
 
 
-                <TextInput
-                  value={
-                    startDate
-                  }
+                {Platform.OS === 'web' ? (
+                  <WebDateTimeInput
+                    mode="date"
+                    value={startDate}
+                    onChange={setStartDate}
+                    ariaLabel="Start date"
+                    placeholder="Select date"
+                    style={{
+                      minHeight: 52,
+                      backgroundColor: '#E7F3F5',
+                      borderColor: '#C9E0E5',
+                    }}
+                  />
+                ) : (
+                  <Pressable
+                    onPress={() => openDatePicker('start')}
 
-                  onChangeText={
-                    setStartDate
-                  }
+                    style={[
+                      styles.input,
+                      styles.pickerField,
+                    ]}
+                  >
 
-                  placeholder="e.g. 24 September 2026"
+                    <Text
+                      style={[
+                        styles.pickerFieldText,
 
-                  placeholderTextColor={
-                    COLORS.secondaryText
-                  }
+                        !startDate &&
+                          styles.pickerFieldPlaceholder,
+                      ]}
+                    >
+                      {startDate || 'Select date'}
+                    </Text>
 
-                  style={
-                    styles.input
-                  }
-                />
+                    <Ionicons
+                      name="calendar-outline"
+                      size={20}
+                      color={
+                        startDate
+                          ? COLORS.primaryBlue
+                          : COLORS.secondaryText
+                      }
+                    />
+
+                  </Pressable>
+                )}
+
+
+                {datePickerTarget === 'start' &&
+                  isDateTimePickerSupported &&
+                  NativeDateTimePicker && (
+                    <NativeDateTimePicker
+                      value={parsePickerDate(startDate)}
+                      mode="date"
+                      display={
+                        Platform.OS === 'ios'
+                          ? 'spinner'
+                          : 'default'
+                      }
+                      onChange={handleStartDateSelected}
+                      maximumDate={
+                        new Date(2100, 11, 31)
+                      }
+                    />
+                  )}
 
               </View>
 
@@ -2268,25 +2623,71 @@ const deleteMedicine = (id: string) => {
                 </Text>
 
 
-                <TextInput
-                  value={
-                    endDate
-                  }
+                {Platform.OS === 'web' ? (
+                  <WebDateTimeInput
+                    mode="date"
+                    value={endDate}
+                    onChange={setEndDate}
+                    ariaLabel="End date"
+                    placeholder="Select date"
+                    style={{
+                      minHeight: 52,
+                      backgroundColor: '#E7F3F5',
+                      borderColor: '#C9E0E5',
+                    }}
+                  />
+                ) : (
+                  <Pressable
+                    onPress={() => openDatePicker('end')}
 
-                  onChangeText={
-                    setEndDate
-                  }
+                    style={[
+                      styles.input,
+                      styles.pickerField,
+                    ]}
+                  >
 
-                  placeholder="e.g. 24 October 2026"
+                    <Text
+                      style={[
+                        styles.pickerFieldText,
 
-                  placeholderTextColor={
-                    COLORS.secondaryText
-                  }
+                        !endDate &&
+                          styles.pickerFieldPlaceholder,
+                      ]}
+                    >
+                      {endDate || 'Select date'}
+                    </Text>
 
-                  style={
-                    styles.input
-                  }
-                />
+                    <Ionicons
+                      name="calendar-outline"
+                      size={20}
+                      color={
+                        endDate
+                          ? COLORS.primaryBlue
+                          : COLORS.secondaryText
+                      }
+                    />
+
+                  </Pressable>
+                )}
+
+
+                {datePickerTarget === 'end' &&
+                  isDateTimePickerSupported &&
+                  NativeDateTimePicker && (
+                    <NativeDateTimePicker
+                      value={parsePickerDate(endDate)}
+                      mode="date"
+                      display={
+                        Platform.OS === 'ios'
+                          ? 'spinner'
+                          : 'default'
+                      }
+                      onChange={handleEndDateSelected}
+                      maximumDate={
+                        new Date(2100, 11, 31)
+                      }
+                    />
+                  )}
 
               </View>
 
@@ -2793,7 +3194,10 @@ const deleteMedicine = (id: string) => {
       {/* ================================================= */}
 
       <View
-        style={styles.bottomNav}
+        style={[
+          styles.bottomNav,
+          isDesktop && styles.bottomNavDesktop,
+        ]}
       >
 
         <Pressable
@@ -3470,6 +3874,12 @@ const styles =
     paddingHorizontal: 23,
 
     paddingVertical: 8,
+
+    width: '100%',
+
+    maxWidth: 980,
+
+    alignSelf: 'center',
   },
 
 
@@ -4062,6 +4472,31 @@ const styles =
   },
 
 
+  bottomNavDesktop: {
+    width: '100%',
+
+    maxWidth: 720,
+
+    alignSelf: 'center',
+
+    height: 64,
+
+    marginTop: 10,
+
+    marginBottom: 14,
+
+    paddingHorizontal: 12,
+
+    borderTopWidth: 0,
+
+    borderWidth: 1,
+
+    borderColor: COLORS.border,
+
+    borderRadius: 16,
+  },
+
+
   bottomTab: {
     height: 48,
 
@@ -4211,6 +4646,39 @@ const styles =
 
   scheduleTimeInput: {
     flex: 1,
+  },
+
+
+  // Picker fields (Pressable styled like a text input, same as Appointments)
+
+  pickerField: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent:
+      'space-between',
+
+    gap: 8,
+  },
+
+
+  pickerFieldText: {
+    flexShrink: 1,
+
+    fontFamily:
+      'Inter_400Regular',
+
+    fontSize: 15,
+
+    color:
+      COLORS.mainText,
+  },
+
+
+  pickerFieldPlaceholder: {
+    color:
+      COLORS.secondaryText,
   },
 
 

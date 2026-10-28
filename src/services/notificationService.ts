@@ -1105,6 +1105,56 @@ function buildAppointmentSpec(appointment: AppointmentReminder) {
   };
 }
 
+// The same appointment reminder, 30 minutes before the visit. Gives the
+// user a heads-up before the exact-time reminder. Null when the lead time
+// has already passed.
+function buildAppointmentLeadSpec(appointment: AppointmentReminder) {
+  const exact = buildAppointmentSpec(appointment);
+
+  if (!exact) {
+    return null;
+  }
+
+  const leadDate = new Date(exact.triggerDate.getTime() - 30 * 60 * 1000);
+
+  if (leadDate.getTime() <= Date.now()) {
+    return null;
+  }
+
+  const title = `Appointment soon: ${appointment.doctor}`;
+  const body = `Starts in 30 minutes — ${appointment.specialty} at ${appointment.hospital} (${appointment.date} at ${appointment.time}).`;
+
+  return {
+    identifier: buildReminderIdentifier('appt30', appointment.id),
+    appointmentId: appointment.id,
+    reminderKey: `appointment-30::${appointment.id}`,
+    fingerprint: JSON.stringify({
+      lead: 30,
+      date: appointment.date,
+      time: appointment.time,
+      title,
+      body,
+    }),
+    triggerDate: leadDate,
+    title,
+    body,
+  };
+}
+
+// Both reminders for one appointment: the 30-minutes-before heads-up and
+// the exact-time reminder (either may be absent depending on timing).
+function buildAppointmentSpecs(appointment: AppointmentReminder) {
+  const specs: NonNullable<ReturnType<typeof buildAppointmentSpec>>[] = [];
+
+  const lead = buildAppointmentLeadSpec(appointment);
+  if (lead) specs.push(lead);
+
+  const exact = buildAppointmentSpec(appointment);
+  if (exact) specs.push(exact);
+
+  return specs;
+}
+
 type AppointmentSpec = NonNullable<ReturnType<typeof buildAppointmentSpec>>;
 
 async function scheduleAppointmentSpec(spec: AppointmentSpec) {
@@ -1148,7 +1198,7 @@ async function scheduleAppointmentSpec(spec: AppointmentSpec) {
   }
 }
 
-// Schedule a one-time appointment reminder.
+// Schedule the one-time appointment reminders (30-min heads-up + at time).
 export async function scheduleAppointmentReminder(
   appointment: AppointmentReminder
 ) {
@@ -1161,8 +1211,8 @@ export async function scheduleAppointmentReminder(
     return;
   }
 
-  const spec = buildAppointmentSpec(appointment);
-  if (!spec) {
+  const specs = buildAppointmentSpecs(appointment);
+  if (specs.length === 0) {
     return;
   }
 
@@ -1174,13 +1224,13 @@ export async function scheduleAppointmentReminder(
     return;
   }
 
-  // Remove any existing reminder for this appointment.
+  // Remove any existing reminders for this appointment.
   await cancelAppointmentRemindersForAppointment(appointment.id);
 
-  const notificationId = await scheduleAppointmentSpec(spec);
-
-  console.log('Appointment reminder scheduled:', notificationId);
-  return notificationId;
+  for (const spec of specs) {
+    await scheduleAppointmentSpec(spec);
+    console.log('Appointment reminder scheduled:', spec.identifier);
+  }
 }
 
 // Cancel reminders belonging to a particular appointment.
@@ -1241,8 +1291,9 @@ async function reconcileAppointmentReminders(
 
   const desired = new Map<string, AppointmentSpec>();
   for (const appointment of appointments) {
-    const spec = buildAppointmentSpec(appointment);
-    if (spec) desired.set(spec.identifier, spec);
+    for (const spec of buildAppointmentSpecs(appointment)) {
+      desired.set(spec.identifier, spec);
+    }
   }
 
   console.log(

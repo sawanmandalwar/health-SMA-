@@ -10,7 +10,6 @@ import {
   Text,
   TextInput,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
@@ -20,6 +19,7 @@ import { File } from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
 import { apiFetch, parseJson, apiUrl } from '../services/api';
 import { deactivatePushTokenWithBackend } from '../services/notificationService';
 import { resetTimezoneSyncCache } from '../services/timezoneService';
@@ -47,8 +47,6 @@ interface ProfileData {
   age: string;
   gender: string;
   bloodGroup: string;
-  emergencyName: string;
-  emergencyPhone: string;
   photoUrl: string;
 }
 
@@ -59,13 +57,11 @@ const defaultProfile: ProfileData = {
   age: '',
   gender: '',
   bloodGroup: '',
-  emergencyName: '',
-  emergencyPhone: '',
   photoUrl: '',
 };
 
 export default function ProfileScreen() {
-  const { width } = useWindowDimensions();
+  const { width } = useResponsiveDimensions();
   const isMobile = width < 650;
 
   const [profile, setProfile] =
@@ -80,8 +76,6 @@ export default function ProfileScreen() {
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('');
   const [bloodGroup, setBloodGroup] = useState('');
-  const [emergencyName, setEmergencyName] = useState('');
-  const [emergencyPhone, setEmergencyPhone] = useState('');
 
   const [photoUri, setPhotoUri] = useState('');
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -134,8 +128,6 @@ export default function ProfileScreen() {
         age: localProfile.age || '',
         gender: localProfile.gender || '',
         bloodGroup: localProfile.bloodGroup || '',
-        emergencyName: localProfile.emergencyName || '',
-        emergencyPhone: localProfile.emergencyPhone || '',
         photoUrl: data.user.photoUrl
           ? apiUrl(String(data.user.photoUrl))
           : '',
@@ -185,8 +177,6 @@ export default function ProfileScreen() {
     setAge(data.age);
     setGender(data.gender);
     setBloodGroup(data.bloodGroup);
-    setEmergencyName(data.emergencyName);
-    setEmergencyPhone(data.emergencyPhone);
   };
 
   // ==================================================
@@ -488,6 +478,9 @@ useFocusEffect(
     return () => {
       // Nothing needed here
     };
+    // loadProfile is a plain function recreated every render; including it
+    // would re-run this focus effect on every render and reload in a loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 );
 
@@ -499,8 +492,6 @@ useFocusEffect(
       age: age.trim(),
       gender: gender.trim(),
       bloodGroup: bloodGroup.trim(),
-      emergencyName: emergencyName.trim(),
-      emergencyPhone: emergencyPhone.trim(),
       photoUrl: photoUri,
     };
 
@@ -896,52 +887,6 @@ useFocusEffect(
           )}
         </View>
 
-        {/* EMERGENCY CONTACT */}
-        <SectionTitle
-          icon="medical-outline"
-          title="Emergency Contact"
-        />
-
-        <View style={styles.card}>
-          {editing ? (
-            <>
-              <Input
-                label="Contact Name"
-                value={emergencyName}
-                placeholder="e.g. Family member"
-                onChangeText={setEmergencyName}
-              />
-
-              <Input
-                label="Contact Number"
-                value={emergencyPhone}
-                placeholder="Enter emergency number"
-                onChangeText={setEmergencyPhone}
-                keyboardType="phone-pad"
-              />
-            </>
-          ) : (
-            <>
-              <InfoRow
-                icon="person-outline"
-                label="Contact Name"
-                value={
-                  profile.emergencyName || 'Not added'
-                }
-              />
-
-              <InfoRow
-                icon="call-outline"
-                label="Contact Number"
-                value={
-                  profile.emergencyPhone || 'Not added'
-                }
-                last
-              />
-            </>
-          )}
-        </View>
-
         {/* SETTINGS */}
         <SectionTitle
           icon="settings-outline"
@@ -1086,7 +1031,12 @@ useFocusEffect(
       )}
 
       {/* BOTTOM NAVIGATION */}
-      <View style={styles.bottomNav}>
+      <View
+        style={[
+          styles.bottomNav,
+          !isMobile && styles.bottomNavDesktop,
+        ]}
+      >
         <BottomTab
           icon="home-outline"
           label="Home"
@@ -1973,6 +1923,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     paddingHorizontal: 20,
+  },
+
+  bottomNavDesktop: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+    height: 64,
+    marginTop: 10,
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    borderTopWidth: 0,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
   },
 
   bottomTab: {

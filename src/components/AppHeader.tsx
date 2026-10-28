@@ -6,7 +6,7 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  useWindowDimensions,
+  Modal,
 } from 'react-native';
 
 import { Image } from 'expo-image';
@@ -14,6 +14,10 @@ import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useRouter } from 'expo-router';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
 
 import { useHeaderUser } from '../hooks/useHeaderUser';
 
@@ -48,7 +52,9 @@ const COLORS = {
 export default function AppHeader() {
   const router = useRouter();
 
-  const { width } = useWindowDimensions();
+  const { width } = useResponsiveDimensions();
+
+  const insets = useSafeAreaInsets();
 
   const isMobile = width < 600;
 
@@ -99,9 +105,33 @@ export default function AppHeader() {
           )}
         </Pressable>
 
-        {/* NOTIFICATIONS DROPDOWN (absolute: no layout shift) */}
-        {notificationsOpen && (
-          <View style={[styles.notificationDropdown, { width: dropdownWidth }]}>
+        {/* NOTIFICATIONS DROPDOWN — rendered through a transparent Modal
+            so it always sits above the screen content on every platform
+            (an absolutely positioned dropdown gets buried under later
+            siblings like the profile ScrollView on Android). Tapping
+            outside the panel closes it. */}
+        <Modal
+          transparent
+          visible={notificationsOpen}
+          animationType="fade"
+          onRequestClose={() => setNotificationsOpen(false)}
+        >
+          {/* Dismiss layer: anywhere outside the panel closes the dropdown. */}
+          <Pressable
+            style={styles.dropdownBackdrop}
+            onPress={() => setNotificationsOpen(false)}
+          />
+
+          <View
+            style={[
+              styles.notificationDropdown,
+              {
+                width: dropdownWidth,
+                top: insets.top + (isMobile ? 54 : 62),
+                right: isMobile ? 12 : 20,
+              },
+            ]}
+          >
             <View style={styles.notificationDropdownHeader}>
               <Text style={styles.notificationDropdownTitle}>
                 Notifications
@@ -167,7 +197,7 @@ export default function AppHeader() {
               </ScrollView>
             )}
           </View>
-        )}
+        </Modal>
 
         {/* PROFILE AVATAR (fixed-size container: photo or initials) */}
         <Pressable
@@ -387,10 +417,13 @@ const createStyles = (isMobile: boolean) =>
       color: COLORS.white,
     },
 
+    dropdownBackdrop: {
+      flex: 1,
+      backgroundColor: 'rgba(20, 40, 50, 0.25)',
+    },
+
     notificationDropdown: {
       position: 'absolute',
-      top: isMobile ? 54 : 62,
-      right: 0,
 
       maxHeight: 420,
 

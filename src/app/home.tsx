@@ -19,14 +19,14 @@ import {
 
   Text,
 
-  useWindowDimensions,
-
   View,
 
 
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
 
 import { router, useFocusEffect } from 'expo-router';
 import { apiFetch, parseJson } from '../services/api';
@@ -185,7 +185,6 @@ const COLORS = {
   lightBlue: '#E7F2FA',
 
   lightGreen: '#E5F7F1',
-
   red: '#E2574C',
 
   lightRed: '#FBE8E6',
@@ -210,7 +209,7 @@ const COLORS = {
 
 export default function HomeScreen() {
 
-  const { width } = useWindowDimensions();
+  const { width } = useResponsiveDimensions();
 
   const [dashboard, setDashboard] = React.useState<DashboardData | null>(null);
   const [dashboardLoading, setDashboardLoading] = React.useState(true);
@@ -221,9 +220,13 @@ export default function HomeScreen() {
 
   const [updatingMedicineId, setUpdatingMedicineId] = React.useState<string | null>(null);
 
+  const [quickActionsOpen, setQuickActionsOpen] = React.useState(true);
+
 
 
   const isDesktop = width >= 900;
+
+  const statColumns = width >= 1200 ? 5 : isDesktop ? 3 : 2;
 
 
 
@@ -763,8 +766,7 @@ const nextAppointmentBadgeText = (() => {
 
 
 
-            <Animated.View
-
+            <Animated.View               
               style={{
 
                 opacity: fadeAnim,
@@ -842,7 +844,7 @@ const nextAppointmentBadgeText = (() => {
                 </View>
               )}
 
-              {dashboard && dashboardError && (
+              {dashboard && !!dashboardError && (
                 <View style={styles.dashboardWarning}>
                   <Ionicons
                     name="warning-outline"
@@ -879,6 +881,8 @@ const nextAppointmentBadgeText = (() => {
 
                   iconBackground={COLORS.lightBlue}
 
+                  columns={statColumns}
+
                 />
 
 
@@ -894,6 +898,8 @@ const nextAppointmentBadgeText = (() => {
                   iconColor={COLORS.green}
 
                   iconBackground={COLORS.lightGreen}
+
+                  columns={statColumns}
 
                 />
 
@@ -911,6 +917,8 @@ const nextAppointmentBadgeText = (() => {
 
                   iconBackground={COLORS.lightRed}
 
+                  columns={statColumns}
+
                 />
 
 
@@ -927,6 +935,8 @@ const nextAppointmentBadgeText = (() => {
 
                   iconBackground={COLORS.lightPending}
 
+                  columns={statColumns}
+
                 />
 
 
@@ -942,6 +952,8 @@ const nextAppointmentBadgeText = (() => {
                   iconColor={COLORS.primary}
 
                   iconBackground={COLORS.lightBlue}
+
+                  columns={statColumns}
 
                 />
 
@@ -1338,6 +1350,50 @@ const nextAppointmentBadgeText = (() => {
 
                     )}
 
+                    <View style={styles.quickDivider} />
+
+                    <Pressable
+                      onPress={() => setQuickActionsOpen((open) => !open)}
+                      style={styles.quickToggle}
+                      accessibilityRole="button"
+                      accessibilityLabel="Toggle quick actions"
+                    >
+                      <Text style={styles.quickTitle}>Quick Actions</Text>
+                      <Ionicons
+                        name={quickActionsOpen ? 'chevron-up' : 'chevron-down'}
+                        size={18}
+                        color={COLORS.secondary}
+                      />
+                    </Pressable>
+
+                    {quickActionsOpen && (
+                      <View style={styles.quickGrid}>
+                        <QuickAction
+                          icon="add"
+                          label="Add Medicine"
+                          onPress={() => router.push('/medicines')}
+                        />
+
+                        <QuickAction
+                          icon="scan-outline"
+                          label="Scan Prescription"
+                          onPress={() => router.push('/scan')}
+                        />
+
+                        <QuickAction
+                          icon="calendar-outline"
+                          label="Appointments"
+                          onPress={() => router.push('/appointments')}
+                        />
+
+                        <QuickAction
+                          icon="business-outline"
+                          label="Find Hospital"
+                          onPress={() => router.push('/hospitals')}
+                        />
+                      </View>
+                    )}
+
                   </View>
 
 
@@ -1354,74 +1410,6 @@ const nextAppointmentBadgeText = (() => {
 
               </>
               )}
-
-
-              {/* ================= QUICK ACTIONS ================= */}
-
-
-
-              <Text style={styles.quickTitle}>
-
-                Quick Actions
-
-              </Text>
-
-
-
-              <View style={styles.quickGrid}>
-
-
-
-                <QuickAction
-
-                  icon="add"
-
-                  label="Add Medicine"
-
-                  onPress={() => router.push('/medicines')}
-
-                />
-
-
-
-                <QuickAction
-
-                  icon="scan-outline"
-
-                  label="Scan Prescription"
-
-                  onPress={() => router.push('/scan')}
-
-                />
-
-
-
-                <QuickAction
-
-                  icon="calendar-outline"
-
-                  label="Appointments"
-
-                  onPress={() => router.push('/appointments')}
-
-                />
-
-
-
-                <QuickAction
-
-                  icon="business-outline"
-
-                  label="Find Hospital"
-
-                  onPress={() => router.push('/hospitals')}
-
-                />
-
-
-
-              </View>
-
 
 
             </Animated.View>
@@ -1534,6 +1522,8 @@ function StatCard({
 
   iconBackground,
 
+  columns = 2,
+
 }: {
 
   icon: any;
@@ -1546,11 +1536,19 @@ function StatCard({
 
   iconBackground: string;
 
+  columns?: number;
+
 }) {
 
   return (
 
-    <View style={styles.statCard}>
+    <View
+      style={[
+        styles.statCard,
+        columns === 3 && styles.statCardThree,
+        columns === 5 && styles.statCardFive,
+      ]}
+    >
 
 
 
@@ -2050,7 +2048,7 @@ function QuickAction({
 
           name={icon}
 
-          size={24}
+          size={20}
 
           color={COLORS.primary}
 
@@ -2792,7 +2790,7 @@ notificationDropdown: {
 
     minHeight: 88,
 
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
 
     paddingVertical: 14,
 
@@ -2806,11 +2804,31 @@ notificationDropdown: {
 
 
 
+  statCardThree: {
+
+    width: '31.8%',
+
+  },
+
+
+
+  statCardFive: {
+
+    width: '18.6%',
+
+    paddingHorizontal: 12,
+
+    minHeight: 82,
+
+  },
+
+
+
   statIcon: {
 
-    width: 51,
+    width: 44,
 
-    height: 51,
+    height: 44,
 
     borderRadius: 9,
 
@@ -2818,7 +2836,9 @@ notificationDropdown: {
 
     justifyContent: 'center',
 
-    marginRight: 14,
+    marginRight: 11,
+
+    flexShrink: 0,
 
   },
 
@@ -2962,7 +2982,13 @@ notificationDropdown: {
 
     flexDirection: 'row',
 
+    flexWrap: 'wrap',
+
     alignItems: 'center',
+
+    rowGap: 10,
+
+    paddingVertical: 12,
 
     borderBottomWidth: 1,
 
@@ -2995,6 +3021,8 @@ notificationDropdown: {
   medicineInfo: {
 
     flex: 1,
+
+    minWidth: 0,
 
   },
 
@@ -3047,6 +3075,10 @@ notificationDropdown: {
     flexDirection: 'row',
 
     alignItems: 'center',
+
+    flexShrink: 0,
+
+    marginLeft: 8,
 
     gap: 3,
 
@@ -3300,7 +3332,11 @@ notificationDropdown: {
 
     flexDirection: 'row',
 
+    flexWrap: 'wrap',
+
     alignItems: 'flex-start',
+
+    rowGap: 10,
 
     marginTop: 18,
 
@@ -3324,6 +3360,8 @@ notificationDropdown: {
 
     marginRight: 13,
 
+    flexShrink: 0,
+
   },
 
 
@@ -3331,6 +3369,8 @@ notificationDropdown: {
   appointmentDetails: {
 
     flex: 1,
+
+    minWidth: 0,
 
   },
 
@@ -3406,6 +3446,10 @@ notificationDropdown: {
 
     gap: 3,
 
+    flexShrink: 0,
+
+    marginLeft: 'auto',
+
   },
 
 
@@ -3426,17 +3470,41 @@ notificationDropdown: {
 
 
 
+  quickDivider: {
+
+    height: 1,
+
+    backgroundColor: COLORS.border,
+
+    marginTop: 20,
+
+    marginBottom: 12,
+
+  },
+
+
+
+  quickToggle: {
+
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'space-between',
+
+    paddingVertical: 2,
+
+  },
+
+
+
   quickTitle: {
 
     color: COLORS.text,
 
-    fontFamily: 'Poppins_600SemiBold',
+    fontFamily: 'Inter_600SemiBold',
 
-    fontSize: 21,
-
-    marginTop: 4,
-
-    marginBottom: 14,
+    fontSize: 15,
 
   },
 
@@ -3450,6 +3518,10 @@ notificationDropdown: {
 
     justifyContent: 'space-between',
 
+    marginTop: 12,
+
+    rowGap: 10,
+
   },
 
 
@@ -3458,23 +3530,21 @@ notificationDropdown: {
 
     width: '48.7%',
 
-    minHeight: 80,
+    minHeight: 72,
 
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.background,
 
     borderWidth: 1,
 
     borderColor: COLORS.border,
 
-    borderRadius: 10,
+    borderRadius: 9,
 
-    padding: 15,
+    padding: 10,
 
     flexDirection: 'row',
 
     alignItems: 'center',
-
-    marginBottom: 12,
 
   },
 
@@ -3482,11 +3552,11 @@ notificationDropdown: {
 
   quickIcon: {
 
-    width: 51,
+    width: 36,
 
-    height: 51,
+    height: 36,
 
-    borderRadius: 9,
+    borderRadius: 8,
 
     backgroundColor: COLORS.lightBlue,
 
@@ -3494,7 +3564,9 @@ notificationDropdown: {
 
     justifyContent: 'center',
 
-    marginRight: 13,
+    marginRight: 9,
+
+    flexShrink: 0,
 
   },
 
@@ -3506,9 +3578,11 @@ notificationDropdown: {
 
     fontFamily: 'Inter_600SemiBold',
 
-    fontSize: 13,
+    fontSize: 12,
 
     flex: 1,
+
+    minWidth: 0,
 
   },
 
@@ -3677,6 +3751,7 @@ notificationDropdown: {
 
   medicineActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginTop: 8,
   },

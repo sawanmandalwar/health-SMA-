@@ -13,13 +13,13 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
 
 export default function RegisterScreen() {
-  const { width } = useWindowDimensions();
+  const { width } = useResponsiveDimensions();
   const isLargeScreen = width >= 768;
 
   // =========================

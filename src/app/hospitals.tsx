@@ -7,11 +7,12 @@ import {
   Pressable,
   ScrollView,
   TextInput,
-  useWindowDimensions,
   Linking,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+
+import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
 
 import { Ionicons } from '@expo/vector-icons';
 
@@ -166,7 +167,7 @@ function formatDistance(distanceKm: number | null): string {
 export default function HospitalsScreen() {
   const router = useRouter();
 
-  const { width } = useWindowDimensions();
+  const { width } = useResponsiveDimensions();
 
   const isMobile = width < 600;
 
@@ -1356,6 +1357,8 @@ export default function HospitalsScreen() {
           styles.bottomNav,
 
           isMobile && styles.bottomNavMobile,
+
+          !isMobile && styles.bottomNavDesktop,
         ]}
       >
 
@@ -2524,6 +2527,31 @@ const styles = StyleSheet.create({
     height: 68,
 
     paddingHorizontal: 8,
+  },
+
+
+  bottomNavDesktop: {
+    width: '100%',
+
+    maxWidth: 720,
+
+    alignSelf: 'center',
+
+    height: 64,
+
+    marginTop: 10,
+
+    marginBottom: 14,
+
+    paddingHorizontal: 12,
+
+    borderTopWidth: 0,
+
+    borderWidth: 1,
+
+    borderColor: COLORS.border,
+
+    borderRadius: 16,
   },
 
 

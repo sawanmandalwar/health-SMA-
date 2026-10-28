@@ -11,10 +11,11 @@ import {
   Switch,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import type { TextInputProps } from 'react-native';
+
+import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
 
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -151,7 +152,7 @@ const writeLocalSettings = async (settings: CaregiverSettings) => {
 };
 
 export default function CaregiverScreen() {
-  const { width } = useWindowDimensions();
+  const { width } = useResponsiveDimensions();
   const isMobile = width < 650;
 
   const [name, setName] = useState('');

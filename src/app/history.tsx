@@ -1,8 +1,12 @@
-import React, { useEffect, useState , useCallback } from 'react';
+import React, { useState , useCallback } from 'react';
 import { useFocusEffect , useRouter } from 'expo-router';
 import { apiFetch, parseJson } from '../services/api';
 
-import { useHeaderUser } from '../hooks/useHeaderUser';
+import AppHeader from '../components/AppHeader';
+
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
 
 import {
   View,
@@ -10,7 +14,6 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  useWindowDimensions,
 } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -107,10 +110,7 @@ export default function HistoryScreen() {
   const router = useRouter();
 
   const { width } =
-    useWindowDimensions();
-
-  // Header user (shared hook: cache instantly + fresh on focus)
-  const { displayName } = useHeaderUser();
+    useResponsiveDimensions();
 
 
   // ====================================================
@@ -444,82 +444,19 @@ export default function HistoryScreen() {
 
   return (
 
-    <View
+    <SafeAreaView
       style={
         styles.screen
       }
+
+      edges={['top']}
     >
 
       {/* ================================================= */}
       {/* HEADER */}
       {/* ================================================= */}
 
-      <View
-        style={[
-          styles.header,
-
-          isMobile &&
-            styles.headerMobile,
-        ]}
-      >
-
-        <Text
-          style={
-            styles.welcome
-          }
-        >
-          Welcome back, {displayName}
-        </Text>
-
-
-        <View
-          style={
-            styles.headerRight
-          }
-        >
-
-          <View
-            style={
-              styles.notification
-            }
-          >
-
-            <Ionicons
-              name="notifications-outline"
-              size={24}
-              color={
-                COLORS.mainText
-              }
-            />
-
-            <View
-              style={
-                styles.notificationDot
-              }
-            />
-
-          </View>
-
-
-          <View
-            style={
-              styles.avatar
-            }
-          >
-
-            <Text
-              style={
-                styles.avatarText
-              }
-            >
-              S
-            </Text>
-
-          </View>
-
-        </View>
-
-      </View>
+      <AppHeader />
 
 
       {/* ================================================= */}
@@ -752,9 +689,10 @@ export default function HistoryScreen() {
       {/* ================================================= */}
 
       <View
-        style={
-          styles.bottomNav
-        }
+        style={[
+          styles.bottomNav,
+          !isMobile && styles.bottomNavDesktop,
+        ]}
       >
 
         <Pressable
@@ -882,7 +820,7 @@ export default function HistoryScreen() {
 
       </View>
 
-    </View>
+    </SafeAreaView>
 
   );
 
@@ -906,109 +844,6 @@ const styles =
 
   scroll: {
     flex: 1,
-  },
-
-
-  // ====================================================
-  // HEADER
-  // ====================================================
-
-  header: {
-    height: 84,
-
-    backgroundColor:
-      COLORS.white,
-
-    borderBottomWidth: 1,
-
-    borderBottomColor:
-      COLORS.border,
-
-    paddingHorizontal: 32,
-
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent:
-      'space-between',
-  },
-
-
-  headerMobile: {
-    height: 76,
-
-    paddingHorizontal: 18,
-  },
-
-
-  welcome: {
-    fontFamily:
-      'Inter_500Medium',
-
-    fontSize: 17,
-
-    color:
-      COLORS.secondaryText,
-  },
-
-
-  headerRight: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    gap: 18,
-  },
-
-
-  notification: {
-    position: 'relative',
-  },
-
-
-  notificationDot: {
-    position: 'absolute',
-
-    width: 7,
-
-    height: 7,
-
-    borderRadius: 4,
-
-    backgroundColor:
-      COLORS.dangerRed,
-
-    right: 0,
-
-    top: 0,
-  },
-
-
-  avatar: {
-    width: 48,
-
-    height: 48,
-
-    borderRadius: 24,
-
-    backgroundColor:
-      COLORS.primaryBlue,
-
-    alignItems: 'center',
-
-    justifyContent: 'center',
-  },
-
-
-  avatarText: {
-    fontFamily:
-      'Poppins_700Bold',
-
-    fontSize: 17,
-
-    color:
-      COLORS.white,
   },
 
 
@@ -1429,6 +1264,31 @@ const styles =
 
     justifyContent:
       'space-around',
+  },
+
+
+  bottomNavDesktop: {
+    width: '100%',
+
+    maxWidth: 720,
+
+    alignSelf: 'center',
+
+    height: 64,
+
+    marginTop: 10,
+
+    marginBottom: 14,
+
+    paddingHorizontal: 12,
+
+    borderTopWidth: 0,
+
+    borderWidth: 1,
+
+    borderColor: COLORS.border,
+
+    borderRadius: 16,
   },
 
 
