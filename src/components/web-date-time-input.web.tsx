@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId, useState } from 'react';
 import type { CSSProperties } from 'react';
 
 const MONTH_NAMES = [
@@ -164,16 +164,19 @@ const TIME_PARTS_STYLE: CSSProperties = {
   gap: 6,
 };
 
-const TIME_SELECT_STYLE: CSSProperties = {
-  border: 'none',
+const TIME_INPUT_STYLE: CSSProperties = {
+  boxSizing: 'border-box',
+  width: 58,
+  border: '1px solid transparent',
+  borderRadius: 6,
   outline: 'none',
   background: 'transparent',
   color: '#1D2B33',
   fontSize: 15,
   fontFamily: FONT_FAMILY,
-  height: 44,
-  padding: '0 2px',
-  cursor: 'pointer',
+  height: 40,
+  padding: '0 4px',
+  textAlign: 'center',
 };
 
 const PERIOD_GROUP_STYLE: CSSProperties = {
@@ -212,13 +215,43 @@ export default function WebDateTimeInput({
   disabled,
   style,
 }: Props) {
+  const [draft, setDraft] = useState<{
+    source: string;
+    hour: string;
+    minute: string;
+  } | null>(null);
+
+  const hoursListId = useId();
+  const minutesListId = useId();
+
   if (mode === 'time') {
     const parsed = parseDisplayTime(value);
-    const hours24 = parsed ? parsed.hours : null;
+    const period: 'AM' | 'PM' =
+      parsed && parsed.hours >= 12 ? 'PM' : 'AM';
+    const hour12 = parsed === null
+      ? null
+      : parsed.hours % 12 === 0
+        ? 12
+        : parsed.hours % 12;
     const minutes = parsed ? parsed.minutes : null;
-    const period: 'AM' | 'PM' = hours24 !== null && hours24 >= 12 ? 'PM' : 'AM';
-    const hour12 =
-      hours24 === null ? null : hours24 % 12 === 0 ? 12 : hours24 % 12;
+
+    // A draft only applies while it belongs to the current value, so any
+    // committed change falls straight back to the canonical value.
+    const activeDraft = draft && draft.source === value ? draft : null;
+
+    const hourText =
+      activeDraft !== null
+        ? activeDraft.hour
+        : hour12 === null
+          ? ''
+          : String(hour12);
+
+    const minuteText =
+      activeDraft !== null
+        ? activeDraft.minute
+        : minutes === null
+          ? ''
+          : pad(minutes);
 
     const minuteOptions = minutes !== null && !MINUTE_STEPS.includes(minutes)
       ? [...MINUTE_STEPS, minutes].sort((a, b) => a - b)
@@ -236,53 +269,109 @@ export default function WebDateTimeInput({
       onChange(formatDisplayTime({ hours: nextHours24, minutes: nextMinutes }));
     };
 
+    const currentHour = (): number => {
+      const fromText = Number(hourText);
+      if (hourText !== '' && fromText >= 1 && fromText <= 12) return fromText;
+      return hour12 ?? 12;
+    };
+
+    const currentMinutes = (): number => {
+      const fromText = Number(minuteText);
+      if (minuteText !== '' && fromText >= 0 && fromText <= 59) return fromText;
+      return minutes ?? 0;
+    };
+
+    const handleHourChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const digits = event.target.value.replace(/\D/g, '').slice(0, 2);
+
+      setDraft({ source: value, hour: digits, minute: minuteText });
+
+      const next = Number(digits);
+      if (digits && next >= 1 && next <= 12) {
+        commit(next, currentMinutes(), period);
+      }
+    };
+
+    const handleHourBlur = () => {
+      if (hourText === '') {
+        setDraft(null);
+      }
+    };
+
+    const handleMinuteChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const digits = event.target.value.replace(/\D/g, '').slice(0, 2);
+
+      setDraft({ source: value, hour: hourText, minute: digits });
+
+      const next = Number(digits);
+      if (digits.length === 2 && next <= 59) {
+        commit(currentHour(), next, period);
+      }
+    };
+
+    const handleMinuteBlur = () => {
+      if (minuteText === '') {
+        setDraft(null);
+        return;
+      }
+
+      if (minuteText.length === 1) {
+        const next = Number(minuteText);
+
+        setDraft({ source: value, hour: hourText, minute: pad(next) });
+        commit(currentHour(), next, period);
+      }
+    };
+
     return (
       <div
         style={{ ...TIME_PARTS_STYLE, ...style, opacity: disabled ? 0.6 : 1 }}
       >
-        <select
+        <input
+          type="text"
+          list={hoursListId}
+          inputMode="numeric"
+          autoComplete="off"
           aria-label={ariaLabel ? `${ariaLabel} hour` : 'Hour'}
-          value={hour12 === null ? '' : String(hour12)}
+          placeholder="HH"
+          maxLength={2}
+          value={hourText}
           disabled={disabled}
-          onChange={(event) => {
-            const next = event.target.value;
-            if (!next) return;
-            commit(Number(next), minutes ?? 0, period);
-          }}
-          style={TIME_SELECT_STYLE}
-        >
-          {hour12 === null && <option value="">HH</option>}
+          onChange={handleHourChange}
+          onBlur={handleHourBlur}
+          style={TIME_INPUT_STYLE}
+        />
 
+        <datalist id={hoursListId}>
           {Array.from({ length: 12 }, (_, index) => index + 1).map((hour) => (
-            <option key={hour} value={hour}>
-              {hour}
-            </option>
+            <option key={hour} value={hour} />
           ))}
-        </select>
+        </datalist>
 
         <span style={{ color: '#1D2B33', fontSize: 15, fontWeight: 600 }}>
           :
         </span>
 
-        <select
+        <input
+          type="text"
+          list={minutesListId}
+          inputMode="numeric"
+          autoComplete="off"
           aria-label={ariaLabel ? `${ariaLabel} minutes` : 'Minutes'}
-          value={minutes === null ? '' : pad(minutes)}
+          placeholder="MM"
+          maxLength={2}
+          value={minuteText}
           disabled={disabled}
-          onChange={(event) => {
-            const next = event.target.value;
-            if (!next) return;
-            commit(hour12 ?? 12, Number(next), period);
-          }}
-          style={TIME_SELECT_STYLE}
-        >
-          {minutes === null && <option value="">MM</option>}
+          onChange={handleMinuteChange}
+          onBlur={handleMinuteBlur}
+          style={TIME_INPUT_STYLE}
+        />
 
+        <datalist id={minutesListId}>
           {minuteOptions.map((minute) => (
-            <option key={minute} value={pad(minute)}>
-              {pad(minute)}
-            </option>
+            <option key={minute} value={pad(minute)} />
           ))}
-        </select>
+        </datalist>
 
         <div style={PERIOD_GROUP_STYLE} role="group" aria-label="AM or PM">
           {(['AM', 'PM'] as const).map((option) => (
@@ -291,7 +380,7 @@ export default function WebDateTimeInput({
               type="button"
               disabled={disabled}
               aria-pressed={parsed ? period === option : false}
-              onClick={() => commit(hour12 ?? 12, minutes ?? 0, option)}
+              onClick={() => commit(currentHour(), currentMinutes(), option)}
               style={
                 parsed && period === option
                   ? PERIOD_BUTTON_ACTIVE_STYLE
