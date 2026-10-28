@@ -36,6 +36,18 @@ const app = express();
 app.use(cors());
 
 app.use(express.json());
+// Ensure MongoDB is connected before handling API requests
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error("Database connection failed:", error.message);
+    res.status(503).json({
+      message: "Database connection unavailable",
+    });
+  }
+});
 
 // Global request logger
 app.use((req, res, next) => {
@@ -77,17 +89,31 @@ console.log(
 // CONNECT MONGODB
 // ===============================
 
-connectDB().then(() => {
-  const schedulerState = startMissedDoseScheduler();
-  console.log(
-    `Missed-dose scheduler ${schedulerState.started ? "started" : "not started"} (enabled=${schedulerState.enabled}).`
-  );
+// Start background schedulers only during local development.
+// Vercel serverless functions should use a separate scheduled job.
+if (require.main === module) {
+  connectDB()
+    .then(() => {
+      const schedulerState = startMissedDoseScheduler();
+      console.log(
+        `Missed-dose scheduler ${
+          schedulerState.started ? "started" : "not started"
+        } (enabled=${schedulerState.enabled}).`
+      );
 
-  const appointmentSchedulerState = startMissedAppointmentScheduler();
-  console.log(
-    `Missed-appointment scheduler ${appointmentSchedulerState.started ? "started" : "not started"} (enabled=${appointmentSchedulerState.enabled}).`
-  );
-});
+      const appointmentSchedulerState =
+        startMissedAppointmentScheduler();
+
+      console.log(
+        `Missed-appointment scheduler ${
+          appointmentSchedulerState.started ? "started" : "not started"
+        } (enabled=${appointmentSchedulerState.enabled}).`
+      );
+    })
+    .catch((error) => {
+      console.error("Backend initialization failed:", error.message);
+    });
+}
 
 // ===============================
 // TEST ROUTE
@@ -130,8 +156,14 @@ app.use((err, req, res, next) => {
 // START SERVER
 // ===============================
 
-const PORT = process.env.PORT || 5000;
+// Export Express app for Vercel
+module.exports = app;
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+// Run locally only
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}

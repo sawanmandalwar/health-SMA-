@@ -1,5 +1,7 @@
 const express = require("express");
 
+const mongoose = require("mongoose");
+
 const Appointment = require("../models/Appointment");
 const auth = require("../middleware/auth");
 
@@ -85,6 +87,9 @@ router.post("/", auth, async (req, res) => {
       reason: String(reason).trim(),
       reminder: reminder ?? true,
       status: "Upcoming",
+      // One shared id for every slot created together, so an edit can
+      // replace the whole set of timings for the same visit.
+      groupId: new mongoose.Types.ObjectId().toString(),
     };
 
     const appointments = await Appointment.create(
@@ -142,6 +147,7 @@ router.put("/:id", auth, async (req, res) => {
       hospital,
       date,
       time,
+      times,
       reason,
       reminder,
       status,
@@ -158,18 +164,52 @@ router.put("/:id", auth, async (req, res) => {
       });
     }
 
+    // Optional: the complete desired set of visit times for this
+    // appointment's group (same doctor/visit edited as one). The first
+    // slot stays on the edited document; extra slots become new documents
+    // in the same group; removed timings are deleted.
+    let desiredSlots = null;
+
+    if (Array.isArray(times)) {
+      desiredSlots = times
+        .map((slot) => normalizeTimeSlot(slot))
+        .filter((slot) => slot.length > 0);
+
+      if (desiredSlots.length === 0) {
+        return res.status(400).json({
+          message: "Please provide an appointment time",
+        });
+      }
+
+      const invalidSlot = desiredSlots.find((slot) => !isValidTimeSlot(slot));
+
+      if (invalidSlot) {
+        return res.status(400).json({
+          message: `Invalid appointment time: "${invalidSlot}". Use a format such as 10:00 AM.`,
+        });
+      }
+    }
+
     if (doctor !== undefined) appointment.doctor = doctor;
     if (specialty !== undefined) appointment.specialty = specialty;
     if (hospital !== undefined) appointment.hospital = hospital;
     if (date !== undefined) appointment.date = date;
-    if (time !== undefined) appointment.time = time;
+    if (desiredSlots) {
+      appointment.time = desiredSlots[0];
+    } else if (time !== undefined) {
+      appointment.time = time;
+    }
     if (reason !== undefined) appointment.reason = reason;
     if (reminder !== undefined) appointment.reminder = reminder;
     if (status !== undefined) appointment.status = status;
 
     // A rebooked date/time must go through missed-check + caregiver email
     // again, even if the appointment was already marked missed.
-    if (date !== undefined || time !== undefined) {
+    if (
+      date !== undefined ||
+      time !== undefined ||
+      desiredSlots !== null
+    ) {
       appointment.appointmentAt = undefined;
       appointment.appointmentAtFailed = false;
       appointment.missedAt = undefined;
@@ -181,9 +221,45 @@ router.put("/:id", auth, async (req, res) => {
 
     await appointment.save();
 
+    // Replace the other timings of the same visit when `times` was sent.
+    let created = [];
+
+    if (desiredSlots) {
+      // Legacy documents have no group id; give this one one first so the
+      // delete/create below can never touch unrelated appointments.
+      if (!appointment.groupId) {
+        appointment.groupId = new mongoose.Types.ObjectId().toString();
+        await appointment.save();
+      }
+
+      await Appointment.deleteMany({
+        userId: req.userId,
+        groupId: appointment.groupId,
+        _id: { $ne: appointment._id },
+      });
+
+      const extras = desiredSlots.slice(1).map((slot) => ({
+        userId: appointment.userId,
+        doctor: appointment.doctor,
+        specialty: appointment.specialty,
+        hospital: appointment.hospital,
+        date: appointment.date,
+        time: slot,
+        reason: appointment.reason,
+        reminder: appointment.reminder,
+        status: appointment.status,
+        groupId: appointment.groupId,
+      }));
+
+      if (extras.length > 0) {
+        created = await Appointment.create(extras);
+      }
+    }
+
     res.status(200).json({
       message: "Appointment updated successfully",
       appointment,
+      appointments: [appointment, ...created],
     });
   } catch (error) {
     console.error("Update Appointment Error:", error);

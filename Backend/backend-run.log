@@ -1,0 +1,1753 @@
+◇ injected env (3) from .env
+Auth routes: [
+  {
+    path: '/register',
+    methods: [Object: null prototype] { post: true }
+  },
+  { path: '/login', methods: [Object: null prototype] { post: true } }
+]
+Server running on http://localhost:5000
+MongoDB Connected: ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-dose scheduler started (every 300s).
+Missed-dose scheduler started (enabled=true).
+Missed-appointment scheduler started (every 300s).
+Missed-appointment scheduler started (enabled=true).
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: PUT /api/appointments/6ae15e80a45ab79611f9e463
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: PUT /api/appointments/6ae15e80a45ab79611f9e463
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: POST /api/auth/register
+REQUEST RECEIVED: POST /api/appointments
+REQUEST RECEIVED: PUT /api/appointments/6ae1626c91be6c875def88a1
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: PUT /api/appointments/6ae15e80a45ab79611f9e463
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: PUT /api/appointments/6ae1629891be6c875def88a6
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: DELETE /api/appointments/6ae1626c91be6c875def88a4
+REQUEST RECEIVED: DELETE /api/appointments/6ae1626c91be6c875def88a1
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: PUT /api/notifications/6ae004e391e1e4a49075821f/read
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: PUT /api/notifications/6ae004e391e1e4a49075821f/read
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: PUT /api/notifications/6ae004e391e1e4a49075821f/read
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: PUT /api/notifications/6ae004e391e1e4a49075821f/read
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: PUT /api/appointments/6ae162aa91be6c875def88a7
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: PUT /api/appointments/6ae1632f91be6c875def88ce
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: PUT /api/appointments/6ae1632f91be6c875def88ce
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: PUT /api/appointments/6ae1632f91be6c875def88ce
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: PUT /api/notifications/6ae004e391e1e4a49075821f/read
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: PATCH /api/notifications/6ae004e391e1e4a49075821f/read
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: POST /api/notifications
+REQUEST RECEIVED: PATCH /api/notifications/6ae1647691be6c875def8901/read
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: DELETE /api/notifications/6ae1647691be6c875def8901
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/history
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/history
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/history
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/history
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/history
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/history
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/caregiver
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/history
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /favicon.ico
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /
+REQUEST RECEIVED: GET /favicon.ico
+REQUEST RECEIVED: GET /
+REQUEST RECEIVED: GET /favicon.ico
+REQUEST RECEIVED: GET /
+REQUEST RECEIVED: GET /favicon.ico
+Missed-appointment sweep: {
+  skipped: false,
+  users: 1,
+  failedUsers: 0,
+  missesCreated: 1,
+  emailsSent: 0,
+  emailFailures: 0
+}
+Missed-appointment sweep: {
+  skipped: false,
+  users: 1,
+  failedUsers: 0,
+  missesCreated: 1,
+  emailsSent: 0,
+  emailFailures: 0
+}
+REQUEST RECEIVED: GET /
+REQUEST RECEIVED: GET /
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /uploads/avatars/6abcf10d44418630990f5ebd-1793072884356.png
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /uploads/avatars/6abcf10d44418630990f5ebd-1793072884356.png
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/history
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /uploads/avatars/6abcf10d44418630990f5ebd-1793072884356.png
+REQUEST RECEIVED: GET /api/notifications
+Missed-dose scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-appointment scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-dose scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-appointment scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+Login Error: MongoServerSelectionError: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\find_cursor.js:62:26)
+    at async FindCursor.cursorInit (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:619:27)
+    at async FindCursor.fetchBatch (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:653:13)
+    at async FindCursor.next (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:325:17)
+    at async Collection.findOne (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\collection.js:313:24)
+    at async model.Query._findOne (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:2789:15)
+    at async maybeTracedQueryExec (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:4797:65) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+  
+      at TLSSocket.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:631:26)
+      at TLSSocket.emit (node:events:509:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: [Error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+    ] {
+      library: 'SSL routines',
+      reason: 'tlsv1 alert internal error',
+      code: 'ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR'
+    }
+  }
+}
+Get Profile Error: MongoServerSelectionError: connect ECONNABORTED 159.41.183.60:27017
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\find_cursor.js:62:26)
+    at async FindCursor.cursorInit (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:619:27)
+    at async FindCursor.fetchBatch (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:653:13)
+    at async FindCursor.next (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:325:17)
+    at async Collection.findOne (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\collection.js:313:24)
+    at async model.Query._findOne (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:2789:15)
+    at async maybeTracedQueryExec (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:4797:65) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: connect ECONNABORTED 159.41.183.60:27017
+      at TLSSocket.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:631:26)
+      at TLSSocket.emit (node:events:509:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: connect ECONNABORTED 159.41.183.60:27017
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16) {
+      errno: -4079,
+      code: 'ECONNABORTED',
+      syscall: 'connect',
+      address: '159.41.183.60',
+      port: 27017
+    }
+  }
+}
+Dashboard Error: MongoServerSelectionError: connect ECONNABORTED 159.41.183.60:27017
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\find_cursor.js:62:26)
+    at async FindCursor.cursorInit (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:619:27)
+    at async FindCursor.fetchBatch (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:653:13)
+    at async FindCursor.next (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:325:17) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: connect ECONNABORTED 159.41.183.60:27017
+      at TLSSocket.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:631:26)
+      at TLSSocket.emit (node:events:509:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: connect ECONNABORTED 159.41.183.60:27017
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16) {
+      errno: -4079,
+      code: 'ECONNABORTED',
+      syscall: 'connect',
+      address: '159.41.183.60',
+      port: 27017
+    }
+  }
+}
+Update Timezone Error: MongoServerSelectionError: connect ECONNABORTED 159.41.183.60:27017
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async Collection.findOneAndUpdate (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\collection.js:544:16)
+    at async model.Query._findOneAndUpdate (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:3631:13)
+    at async maybeTracedQueryExec (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:4797:65)
+    at async D:\HEALTH-SATHI\health-saathi-mobile\Backend\routes\profile.route.js:139:18 {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: connect ECONNABORTED 159.41.183.60:27017
+      at TLSSocket.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:631:26)
+      at TLSSocket.emit (node:events:509:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: connect ECONNABORTED 159.41.183.60:27017
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16) {
+      errno: -4079,
+      code: 'ECONNABORTED',
+      syscall: 'connect',
+      address: '159.41.183.60',
+      port: 27017
+    }
+  }
+}
+Get Profile Error: MongoServerSelectionError: connect ECONNABORTED 159.41.183.60:27017
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\find_cursor.js:62:26)
+    at async FindCursor.cursorInit (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:619:27)
+    at async FindCursor.fetchBatch (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:653:13)
+    at async FindCursor.next (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:325:17)
+    at async Collection.findOne (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\collection.js:313:24)
+    at async model.Query._findOne (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:2789:15)
+    at async maybeTracedQueryExec (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:4797:65) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: null
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: connect ECONNABORTED 159.41.183.60:27017
+      at TLSSocket.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:631:26)
+      at TLSSocket.emit (node:events:509:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: connect ECONNABORTED 159.41.183.60:27017
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1705:16) {
+      errno: -4079,
+      code: 'ECONNABORTED',
+      syscall: 'connect',
+      address: '159.41.183.60',
+      port: 27017
+    }
+  }
+}
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+Dashboard Error: MongoServerSelectionError: read ECONNRESET
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\find_cursor.js:62:26)
+    at async FindCursor.cursorInit (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:619:27)
+    at async FindCursor.fetchBatch (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:653:13)
+    at async FindCursor.next (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:325:17) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: 30
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: read ECONNRESET
+      at TLSSocket.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:631:26)
+      at TLSSocket.emit (node:events:509:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: read ECONNRESET
+        at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  }
+}
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+Get Medicines Error: MongoServerSelectionError: read ECONNRESET
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\find_cursor.js:62:26)
+    at async FindCursor.cursorInit (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:619:27)
+    at async FindCursor.fetchBatch (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:653:13)
+    at async FindCursor.next (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:325:17) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: 30
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: read ECONNRESET
+      at TLSSocket.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:631:26)
+      at TLSSocket.emit (node:events:509:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: read ECONNRESET
+        at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  }
+}
+Notification medicine sync error: MongoServerSelectionError: read ECONNRESET
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at runNextTicks (node:internal/process/task_queues:65:5)
+    at listOnTimeout (node:internal/timers:567:9)
+    at process.processTimers (node:internal/timers:541:7)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\find_cursor.js:62:26)
+    at async FindCursor.cursorInit (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:619:27)
+    at async FindCursor.fetchBatch (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:653:13)
+    at async FindCursor.next (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:325:17) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: 30
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: read ECONNRESET
+      at TLSSocket.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:631:26)
+      at TLSSocket.emit (node:events:509:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: read ECONNRESET
+        at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  }
+}
+Get Profile Error: MongoServerSelectionError: read ECONNRESET
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\find_cursor.js:62:26)
+    at async FindCursor.cursorInit (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:619:27)
+    at async FindCursor.fetchBatch (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:653:13)
+    at async FindCursor.next (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:325:17)
+    at async Collection.findOne (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\collection.js:313:24)
+    at async model.Query._findOne (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:2789:15)
+    at async maybeTracedQueryExec (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:4797:65) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: 30
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: read ECONNRESET
+      at TLSSocket.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:631:26)
+      at TLSSocket.emit (node:events:509:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: read ECONNRESET
+        at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  }
+}
+Get Appointments Error: MongoServerSelectionError: read ECONNRESET
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\find_cursor.js:62:26)
+    at async FindCursor.cursorInit (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:619:27)
+    at async FindCursor.fetchBatch (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:653:13)
+    at async FindCursor.next (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:325:17)
+    at async [Symbol.asyncIterator] (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:253:34)
+    at async FindCursor.toArray (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:405:26)
+    at async model.Query._find (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:2491:14) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: 30
+  },
+  code: undefined,
+  [cause]: MongoNetworkError: read ECONNRESET
+      at TLSSocket.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connect.js:314:44)
+      at Object.onceWrapper (node:events:631:26)
+      at TLSSocket.emit (node:events:509:28)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(3) { 'SystemOverloadedError', 'RetryableError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: read ECONNRESET
+        at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  }
+}
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+Get Profile Error: MongoServerSelectionError: connection <monitor> to 159.41.183.91:27017 timed out
+    at Topology.selectServer (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:348:38)
+    at async executeOperationWithRetries (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:181:18)
+    at async executeOperation (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\operations\execute_operation.js:85:16)
+    at async FindCursor._initialize (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\find_cursor.js:62:26)
+    at async FindCursor.cursorInit (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:619:27)
+    at async FindCursor.fetchBatch (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:653:13)
+    at async FindCursor.next (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cursor\abstract_cursor.js:325:17)
+    at async Collection.findOne (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\collection.js:313:24)
+    at async model.Query._findOne (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:2789:15)
+    at async maybeTracedQueryExec (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongoose\lib\query.js:4797:65) {
+  errorLabelSet: Set(0) {},
+  reason: TopologyDescription {
+    type: 'ReplicaSetNoPrimary',
+    servers: Map(3) {
+      'ac-uwoily1-shard-00-00.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-01.lmexlnq.mongodb.net:27017' => [ServerDescription],
+      'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017' => [ServerDescription]
+    },
+    stale: false,
+    compatible: true,
+    heartbeatFrequencyMS: 10000,
+    localThresholdMS: 15,
+    setName: 'atlas-12kb04-shard-0',
+    maxElectionId: new ObjectId('7fffffff000000000000015e'),
+    maxSetVersion: 386,
+    commonWireVersion: 25,
+    logicalSessionTimeoutMinutes: 30
+  },
+  code: undefined,
+  [cause]: MongoNetworkTimeoutError: connection <monitor> to 159.41.183.91:27017 timed out
+      at Timeout._onTimeout (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connection.js:142:26)
+      at listOnTimeout (node:internal/timers:605:17)
+      at process.processTimers (node:internal/timers:541:7) {
+    errorLabelSet: Set(2) { 'ResetPool', 'InterruptInUseConnections' },
+    beforeHandshake: false,
+    [cause]: undefined
+  }
+}
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+Notification medicine sync error: MongoNetworkError: read ECONNRESET
+    at Connection.onSocketError (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connection.js:126:22)
+    at TLSSocket.emit (node:events:521:24)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errorLabelSet: Set(2) { 'RetryableWriteError', 'ResetPool' },
+  beforeHandshake: false,
+  [cause]: Error: read ECONNRESET
+      at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+    errno: -4077,
+    code: 'ECONNRESET',
+    syscall: 'read'
+  }
+}
+Notification medicine sync error: PoolClearedError [MongoPoolClearedError]: Connection pool for ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017 was cleared because another operation failed with: "read ECONNRESET"
+    at ConnectionPool.processWaitQueue (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connection_pool.js:504:82)
+    at ConnectionPool.clear (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connection_pool.js:298:14)
+    at updateServers (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:515:29)
+    at Topology.serverUpdateHandler (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:416:9)
+    at Server.<anonymous> (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\topology.js:498:77)
+    at Server.emit (node:events:509:28)
+    at markServerUnknown (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\server.js:366:12)
+    at Server.handleError (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\server.js:288:17)
+    at Server.decorateCommandError (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\server.js:341:14)
+    at Server.command (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\sdam\server.js:213:28) {
+  errorLabelSet: Set(1) { 'PoolRequestedRetry' },
+  beforeHandshake: false,
+  address: 'ac-uwoily1-shard-00-02.lmexlnq.mongodb.net:27017',
+  [cause]: MongoNetworkError: read ECONNRESET
+      at Connection.onSocketError (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connection.js:126:22)
+      at TLSSocket.emit (node:events:521:24)
+      at emitErrorNT (node:internal/streams/destroy:170:8)
+      at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    errorLabelSet: Set(2) { 'RetryableWriteError', 'ResetPool' },
+    beforeHandshake: false,
+    [cause]: Error: read ECONNRESET
+        at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  }
+}
+Notification medicine sync error: MongoNetworkError: read ECONNRESET
+    at Connection.onSocketError (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connection.js:126:22)
+    at TLSSocket.emit (node:events:521:24)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errorLabelSet: Set(0) {},
+  beforeHandshake: false,
+  [cause]: Error: read ECONNRESET
+      at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+    errno: -4077,
+    code: 'ECONNRESET',
+    syscall: 'read'
+  }
+}
+Notification medicine sync error: MongoNetworkError: read ECONNRESET
+    at Connection.onSocketError (D:\HEALTH-SATHI\health-saathi-mobile\Backend\node_modules\mongodb\lib\cmap\connection.js:126:22)
+    at TLSSocket.emit (node:events:521:24)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+  errorLabelSet: Set(0) {},
+  beforeHandshake: false,
+  [cause]: Error: read ECONNRESET
+      at TLSWrap.onStreamRead (node:internal/stream_base_commons:216:20) {
+    errno: -4077,
+    code: 'ECONNRESET',
+    syscall: 'read'
+  }
+}
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/places/nearby?lat=22.6562424&lng=75.8262766&radius=5000&originLat=22.6562424&originLng=75.8262766
+Overpass https://overpass-api.de/api/interpreter timed out
+Overpass https://overpass.kumi.systems/api/interpreter timed out
+Overpass unavailable - falling back to Nominatim POI search
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: POST /api/medicines
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: PUT /api/medicines/6ae1924a91be6c875def8b0f
+REQUEST RECEIVED: PUT /api/medicines/6ae1924a91be6c875def8b0f
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: PATCH /api/notifications/6ae1925491e1e4a49076b586/read
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: PUT /api/profile
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+Missed-dose sweep: {
+  skipped: false,
+  users: 1,
+  failedUsers: 0,
+  missesCreated: 1,
+  alertsCreated: 0,
+  alertsUpdated: 1,
+  alertsClosed: 0
+}
+Missed-dose scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-appointment scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+REQUEST RECEIVED: GET /
+REQUEST RECEIVED: GET /
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /uploads/avatars/6abcf10d44418630990f5ebd-1793072884356.png
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/places/nearby?lat=22.6561737&lng=75.8260334&radius=5000&originLat=22.6561737&originLng=75.8260334
+Overpass https://overpass-api.de/api/interpreter failed (HTTP 502)
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+Overpass https://overpass.kumi.systems/api/interpreter timed out
+Overpass unavailable - falling back to Nominatim POI search
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: PATCH /api/notifications/6ae180bf91e1e4a49076a56b/read
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/caregiver
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/places/nearby?lat=22.6559798&lng=75.8256733&radius=5000&originLat=22.6559798&originLng=75.8256733
+Overpass https://overpass-api.de/api/interpreter timed out
+REQUEST RECEIVED: GET /api/medicines
+Overpass https://overpass.kumi.systems/api/interpreter timed out
+Overpass unavailable - falling back to Nominatim POI search
+REQUEST RECEIVED: POST /api/auth/login
+REQUEST RECEIVED: PATCH /api/profile/timezone
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/appointments
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/medicines
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/dashboard
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/profile
+REQUEST RECEIVED: GET /api/notifications
+REQUEST RECEIVED: GET /api/places/nearby?lat=22.6559736&lng=75.8256698&radius=5000&originLat=22.6559736&originLng=75.8256698
+Missed-dose scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-appointment scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-dose scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-appointment scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-dose scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-appointment scheduler error: getaddrinfo ENOTFOUND ac-uwoily1-shard-00-00.lmexlnq.mongodb.net
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: connect ETIMEDOUT 159.41.183.60:27017
+Missed-appointment scheduler error: connect ETIMEDOUT 159.41.183.60:27017
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-dose scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+
+Missed-appointment scheduler error: 64850000:error:0A000438:SSL routines:ssl3_read_bytes:tlsv1 alert internal error:openssl\ssl\record\rec_layer_s3.c:918:SSL alert number 80
+

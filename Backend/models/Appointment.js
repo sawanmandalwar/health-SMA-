@@ -38,6 +38,15 @@ const appointmentSchema = new mongoose.Schema(
       trim: true,
     },
 
+    // Shared by every document created from one "Add Appointment" form
+    // submission (one document per time slot). Lets an edit replace the
+    // whole set of timings for the same visit.
+    groupId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+
     reason: {
       type: String,
       required: true,
