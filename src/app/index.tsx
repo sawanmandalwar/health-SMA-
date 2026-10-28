@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
@@ -208,10 +209,18 @@ export default function LoginScreen() {
 
               <Pressable
                 onPress={() => setShowPassword(!showPassword)}
+                style={styles.showPasswordButton}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  showPassword ? 'Hide password' : 'Show password'
+                }
+                hitSlop={8}
               >
-                <Text style={styles.showText}>
-                  {showPassword ? 'Hide' : 'Show'}
-                </Text>
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={22}
+                  color="#1E76B6"
+                />
               </Pressable>
             </View>
 
@@ -308,35 +317,35 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 35,
-    paddingBottom: 35,
+    paddingVertical: 32,
   },
 
   webScrollContent: {
-    alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 50,
   },
 
   card: {
     width: '100%',
-  },
-
-  webCard: {
-    width: 520,
-    maxWidth: '100%',
+    maxWidth: 575,
+    alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 24,
-    paddingHorizontal: 40,
-    paddingVertical: 40,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
     shadowColor: '#155A8C',
     shadowOffset: {
       width: 0,
-      height: 5,
+      height: 10,
     },
     shadowOpacity: 0.12,
-    shadowRadius: 15,
-    elevation: 5,
+    shadowRadius: 30,
+    elevation: 6,
+  },
+
+  webCard: {
+    paddingHorizontal: 40,
+    paddingVertical: 40,
   },
 
   logo: {
@@ -425,10 +434,11 @@ const styles = StyleSheet.create({
     color: '#1D2B33',
   },
 
-  showText: {
-    color: '#1E76B6',
-    fontWeight: '600',
+  showPasswordButton: {
+    height: '100%',
     paddingHorizontal: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   optionsRow: {
