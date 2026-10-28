@@ -319,10 +319,11 @@ const styles2 = StyleSheet.create({
   },
 
   notificationUnreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.primaryBlue,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: COLORS.dangerRed,
+    flexShrink: 0,
   },
 
   notificationItemMessage: {
@@ -394,19 +395,22 @@ const createStyles = (isMobile: boolean) =>
 
     notificationBadge: {
       position: 'absolute',
-      top: 2,
-      right: 0,
+      top: 1,
+      right: -1,
 
-      minWidth: 18,
-      height: 18,
-      borderRadius: 9,
+      minWidth: 19,
+      height: 19,
+      borderRadius: 9.5,
 
       backgroundColor: COLORS.dangerRed,
+
+      borderWidth: 1.5,
+      borderColor: COLORS.white,
 
       alignItems: 'center',
       justifyContent: 'center',
 
-      paddingHorizontal: 4,
+      paddingHorizontal: 3,
     },
 
     notificationBadgeText: {
