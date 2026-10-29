@@ -8,6 +8,26 @@ const {
   runMissedAppointmentSweep,
 } = require("../services/missedAppointmentScheduler");
 const { isEmailProviderConfigured } = require("../services/emailService");
+const MissedDoseAlert = require("../models/MissedDoseAlert");
+
+async function getCaregiverEmailStatus() {
+  const alert = await MissedDoseAlert.findOne({})
+    .sort({ updatedAt: -1 })
+    .select(
+      "status caregiverEmailStatus caregiverEmailLastError caregiverEmailAttempts caregiverEmailLastAttemptAt"
+    )
+    .lean();
+
+  if (!alert) return null;
+
+  return {
+    status: alert.status,
+    emailStatus: alert.caregiverEmailStatus,
+    lastError: alert.caregiverEmailLastError || "",
+    attempts: alert.caregiverEmailAttempts || 0,
+    lastAttemptAt: alert.caregiverEmailLastAttemptAt || null,
+  };
+}
 
 function getEmailDiagnostics() {
   const provider =
@@ -75,6 +95,8 @@ async function handleSweep(req, res) {
     runSweep("missedAppointments", () => runMissedAppointmentSweep()),
   ]);
 
+  const caregiverEmail = await getCaregiverEmailStatus().catch(() => null);
+
   const failed = [reminders, missedDoses, missedAppointments].some(
     (result) => result && result.ok === false
   );
@@ -83,6 +105,7 @@ async function handleSweep(req, res) {
     success: !failed,
     emailConfigured: isEmailProviderConfigured(),
     email: getEmailDiagnostics(),
+    caregiverEmail,
     ...(reminders && reminders.ok ? reminders : {}),
     reminders,
     missedDoses,
