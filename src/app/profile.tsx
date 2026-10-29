@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useResponsiveDimensions } from '../hooks/useResponsiveDimensions';
 import { apiFetch, parseJson, apiUrl } from '../services/api';
 import { deactivatePushTokenWithBackend } from '../services/notificationService';
+import { unregisterWebPushWithBackend } from '../services/webPushService';
 import { resetTimezoneSyncCache } from '../services/timezoneService';
 import AppHeader from '../components/AppHeader';
 const COLORS = {
@@ -615,6 +616,7 @@ useFocusEffect(
 
       if (token) {
         deactivatePushTokenWithBackend(token).catch(() => undefined);
+        unregisterWebPushWithBackend(token).catch(() => undefined);
       }
 
       resetTimezoneSyncCache();

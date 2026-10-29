@@ -11,6 +11,8 @@ import {
 
   Easing,
 
+  Platform,
+
   Pressable,
 
   ScrollView,
@@ -36,6 +38,7 @@ import { useHeaderUser } from '../hooks/useHeaderUser';
 
 import AppHeader from '../components/AppHeader';
 import { registerPushTokenWithBackend, parseAppointmentDateTime } from '../services/notificationService';
+import { registerWebPushWithBackend } from '../services/webPushService';
 import { syncTimezoneWithBackend } from '../services/timezoneService';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -334,7 +337,12 @@ export default function HomeScreen() {
       if (!token) return;
 
       await syncTimezoneWithBackend(token);
-      await registerPushTokenWithBackend(token);
+
+      if (Platform.OS === 'web') {
+        await registerWebPushWithBackend(token);
+      } else {
+        await registerPushTokenWithBackend(token);
+      }
     } catch (error) {
       console.error('Notification preference sync error:', error);
     }

@@ -18,6 +18,7 @@ const profileRoutes = require("./routes/profile.route");
 const caregiverRoutes = require("./routes/caregiver.route");
 const historyRoutes = require("./routes/history.routes");
 const notificationRoutes = require('./routes/notification.routes');
+const cronRoutes = require("./routes/cron.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const placesRoutes = require("./routes/places.route");
 const {
@@ -26,6 +27,9 @@ const {
 const {
   startMissedAppointmentScheduler,
 } = require("./services/missedAppointmentScheduler");
+const {
+  startReminderScheduler,
+} = require("./services/reminderSweep");
 
 const app = express();
 
@@ -65,6 +69,7 @@ app.use("/api/medicines", doseRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/history", historyRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use("/api/cron", cronRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/places", placesRoutes);
 
@@ -108,6 +113,14 @@ if (require.main === module) {
         `Missed-appointment scheduler ${
           appointmentSchedulerState.started ? "started" : "not started"
         } (enabled=${appointmentSchedulerState.enabled}).`
+      );
+
+      const reminderSchedulerState = startReminderScheduler();
+
+      console.log(
+        `Web-push reminder scheduler ${
+          reminderSchedulerState.started ? "started" : "not started"
+        }.`
       );
     })
     .catch((error) => {

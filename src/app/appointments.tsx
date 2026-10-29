@@ -44,10 +44,11 @@ import {
   replaceAppointmentReminder,
   cancelAppointmentRemindersForAppointment,
   syncAppointmentReminders,
-  requestNotificationPermission,
   isValidMedicineTime,
   parseAppointmentDateTime,
 } from '../services/notificationService';
+import { requestReminderPermission } from '../services/reminderPermission';
+import { registerWebPushWithBackend } from '../services/webPushService';
 import { apiFetch, parseJson } from '../services/api';
 
 import AppHeader from '../components/AppHeader';
@@ -832,7 +833,7 @@ const [appointments, setAppointments] =
             : [];
 
         if (updatedAppointments.length > 0) {
-          const reminderAllowed = await requestNotificationPermission();
+          const reminderAllowed = await requestReminderPermission(token);
 
           try {
             for (const updated of updatedAppointments) {
@@ -902,7 +903,7 @@ const [appointments, setAppointments] =
           : [];
 
       if (createdAppointments.length > 0) {
-        const reminderAllowed = await requestNotificationPermission();
+        const reminderAllowed = await requestReminderPermission(token);
 
         try {
           for (const created of createdAppointments) {
@@ -1049,6 +1050,10 @@ const [appointments, setAppointments] =
 
       // Directly schedule or cancel the reminder based on new value.
       if (newReminderValue) {
+        if (Platform.OS === 'web') {
+          await registerWebPushWithBackend(token);
+        }
+
         try {
           await replaceAppointmentReminder({
             ...appointment,

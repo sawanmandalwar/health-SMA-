@@ -46,8 +46,8 @@ import {
   syncMedicineReminders,
   cancelMedicineRemindersForMedicine,
   isValidMedicineTime,
-  requestNotificationPermission,
 } from '../services/notificationService';
+import { requestReminderPermission } from '../services/reminderPermission';
 
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
@@ -903,7 +903,7 @@ export default function MedicinesScreen() {
 
     // Ask for notification permission up front so a denial can be surfaced
     // instead of leaving the user with no reminders and no explanation.
-    const remindersAllowed = await requestNotificationPermission();
+    const remindersAllowed = await requestReminderPermission();
 
     const primaryTime = validSchedules[0].time;
 
@@ -978,7 +978,9 @@ export default function MedicinesScreen() {
       if (!remindersAllowed) {
         Alert.alert(
           'Reminders Are Off',
-          'Notifications are disabled for Health Saathi, so medicine reminders will not appear. Enable notifications in your device settings to receive them.'
+          Platform.OS === 'web'
+            ? 'Notifications are blocked for Health Saathi in this browser, so medicine reminders will not appear. Allow notifications for this site in your browser settings to receive them.'
+            : 'Notifications are disabled for Health Saathi, so medicine reminders will not appear. Enable notifications in your device settings to receive them.'
         );
       }
     } catch (error) {
