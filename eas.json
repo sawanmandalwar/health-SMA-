@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.20.154:5000"
+        "EXPO_PUBLIC_API_URL": "https://health-sma.vercel.app"
       }
     },
     "preview": {
@@ -17,13 +17,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.20.154:5000"
+        "EXPO_PUBLIC_API_URL": "https://health-sma.vercel.app"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "http://192.168.20.154:5000"
+        "EXPO_PUBLIC_API_URL": "https://health-sma.vercel.app"
       }
     }
   },

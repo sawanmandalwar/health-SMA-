@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   PixelRatio,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -248,6 +249,7 @@ export default function ScanScreen() {
     width >= 600 &&
     width < 900;
 
+  const isWeb = Platform.OS === 'web';
 
   // ==================================================
   // FONTS
@@ -1595,6 +1597,7 @@ export default function ScanScreen() {
                     label="Crop Image"
                     onPress={() => setCropEditorVisible(true)}
                     disabled={
+                      isWeb ||
                       imageDimensions.width <= 0 ||
                       imageDimensions.height <= 0
                     }
@@ -1605,6 +1608,7 @@ export default function ScanScreen() {
                     label="Rotate Image"
                     onPress={handleQuickRotate}
                     disabled={
+                      isWeb ||
                       imageDimensions.width <= 0 ||
                       imageDimensions.height <= 0
                     }
@@ -1615,6 +1619,7 @@ export default function ScanScreen() {
                     label="Use Original Image"
                     onPress={handleUseOriginal}
                     disabled={
+                      isWeb ||
                       !originalImage ||
                       (imageEdit.rotation === 0 &&
                         isFullImageCrop(imageEdit.crop) &&

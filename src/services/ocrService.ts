@@ -55,9 +55,44 @@ const getErrorMessage = (error: unknown): string => {
   return '';
 };
 
+async function extractWithTesseract(
+  imageUri: string
+): Promise<PrescriptionTextResult> {
+  const TesseractModule = await import('tesseract.js');
+
+  const Tesseract = TesseractModule.default ?? TesseractModule;
+
+  const worker = await Tesseract.createWorker('eng', undefined, {
+    logger: () => {},
+  });
+
+  const { data } = await worker.recognize(imageUri);
+  await worker.terminate();
+
+  const englishText = normalizeBlocks(data.text ? [data.text] : []);
+  const combinedText = englishText;
+
+  if (!combinedText) {
+    throw new OcrError(
+      'EMPTY_RESULT',
+      'No readable text was found in this prescription image. Try a clearer photo.'
+    );
+  }
+
+  return {
+    englishText,
+    hindiText: '',
+    combinedText,
+  };
+}
+
 export async function extractPrescriptionText(
   imageUri: string
 ): Promise<PrescriptionTextResult> {
+  if (Platform.OS === 'web') {
+    return extractWithTesseract(imageUri);
+  }
+
   if (Platform.OS !== 'android') {
     throw new OcrError(
       'UNSUPPORTED_PLATFORM',

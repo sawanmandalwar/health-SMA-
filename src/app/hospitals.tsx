@@ -43,13 +43,16 @@ import { apiFetch, parseJson, getApiErrorMessage } from '../services/api';
 
 import AppHeader from '../components/AppHeader';
 
+import 'leaflet/dist/leaflet.css';
+
 // ====================================================
-// MAP (OpenStreetMap via MapLibre, native only)
+// MAP (OpenStreetMap via MapLibre on native, Leaflet on web)
 // ====================================================
-// @maplibre/maplibre-react-native renders OpenStreetMap data and
-// has no web implementation, so it is required lazily and the map
-// area falls back to a static notice on web. The free OpenFreeMap
-// "Liberty" style is used, so no map API key is required.
+// @maplibre/maplibre-react-native renders OpenStreetMap data on
+// Android/iOS. Leaflet (react-leaflet) renders the same tile data
+// on the web. The free OpenFreeMap "Liberty" style is used for
+// native; standard OpenStreetMap tiles are used on web. No map
+// API key is required for either.
 
 let MapLibre: typeof import('@maplibre/maplibre-react-native') | null = null;
 
@@ -58,11 +61,19 @@ if (Platform.OS !== 'web') {
   MapLibre = require('@maplibre/maplibre-react-native');
 }
 
-const isMapSupported = Platform.OS !== 'web' && MapLibre !== null;
+const isMapSupported =
+  Platform.OS !== 'web'
+    ? MapLibre !== null
+    : true;
 
 // Free vector style built on OpenStreetMap data (attribution is
 // rendered on the map by MapLibre automatically).
 const OSM_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+
+// Standard OSM tile layer used by Leaflet on the web.
+const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const OSM_TILE_ATTRIBUTION =
+  '&copy; OpenStreetMap contributors';
 
 // Neutral fallback camera (India center) used before the user's
 // location is known. This is only a map position, never hospital data.
@@ -158,6 +169,123 @@ function formatDistance(distanceKm: number | null): string {
   }
 
   return `${distanceKm.toFixed(1)} km`;
+}
+
+// ====================================================
+// WEB MAP (Leaflet, only rendered on web)
+// ====================================================
+
+function WebMap({
+  hospitals,
+  userCoords,
+  selectedHospitalId,
+  onHospitalPress,
+  distanceFor,
+}: {
+  hospitals: Hospital[];
+  userCoords: Coords | null;
+  selectedHospitalId: string | null;
+  onHospitalPress: (id: string | null) => void;
+  distanceFor: (hospital: Hospital) => number | null;
+}) {
+  const [leafletModules, setLeafletModules] = useState<
+    | {
+        MapContainer: any;
+        TileLayer: any;
+        Marker: any;
+        Popup: any;
+        L: any;
+      }
+    | null
+  >(null);
+
+  const center = useMemo(() => {
+    if (userCoords) return [userCoords.latitude, userCoords.longitude];
+    if (hospitals.length > 0)
+      return [hospitals[0].latitude, hospitals[0].longitude];
+    return [20.5937, 78.9629];
+  }, [userCoords, hospitals]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [{ MapContainer, TileLayer, Marker, Popup }, L] = await Promise.all([
+        import('react-leaflet'),
+        import('leaflet'),
+      ]);
+      if (!cancelled) {
+        setLeafletModules({ MapContainer, TileLayer, Marker, Popup, L });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!leafletModules) {
+    return (
+      <View style={[styles.map, styles.mapMobile]}>
+        <ActivityIndicator size="large" color={COLORS.primaryBlue} />
+      </View>
+    );
+  }
+
+  const { MapContainer, TileLayer, Marker, Popup, L } = leafletModules;
+
+  const markerIcon = L.divIcon({
+    className: 'custom-marker',
+    html: `<div style="width:32px;height:32px;border-radius:16px;background:${COLORS.primaryBlue};border:3px solid #FFFFFF;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 6px rgba(0,0,0,0.2);"><svg width="16" height="16" fill="#FFFFFF" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg></div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -30],
+  });
+
+  return (
+    <View style={[styles.map, styles.mapMobile]}>
+      <MapContainer
+        center={center}
+        zoom={13}
+        style={{ height: '100%', width: '100%' }}
+        onClick={() => onHospitalPress(null)}
+      >
+        <TileLayer url={OSM_TILE_URL} attribution={OSM_TILE_ATTRIBUTION} />
+        {hospitals.map((hospital) => (
+          <Marker
+            key={hospital.id}
+            position={[hospital.latitude, hospital.longitude]}
+            icon={markerIcon}
+            eventHandlers={{
+              click: () => onHospitalPress(hospital.id),
+            }}
+          >
+            <Popup>
+              <div style={{ padding: 10, fontFamily: 'Inter_400Regular' }}>
+                <div style={{ fontWeight: '700', fontFamily: 'Poppins_700Bold' }}>
+                  {hospital.name}
+                </div>
+                {hospital.address && (
+                  <div style={{ fontSize: 12, color: '#71858D', marginTop: 4 }}>
+                    {hospital.address}
+                  </div>
+                )}
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: COLORS.primaryBlue,
+                    marginTop: 6,
+                    fontWeight: '600',
+                    fontFamily: 'Inter_600SemiBold',
+                  }}
+                >
+                  {formatDistance(distanceFor(hospital))}
+                </div>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+    </View>
+  );
 }
 
 // ====================================================
@@ -676,14 +804,26 @@ export default function HospitalsScreen() {
   // ==================================================
 
   const renderMap = () => {
-    // Local copies so TypeScript can narrow the lazy module refs.
+    // Web: use Leaflet-based map.
+    if (Platform.OS === 'web') {
+      return (
+        <WebMap
+          hospitals={hospitals}
+          userCoords={userCoords}
+          selectedHospitalId={selectedHospitalId}
+          onHospitalPress={(id) => setSelectedHospitalId(id)}
+          distanceFor={distanceFor}
+        />
+      );
+    }
+
+    // Native: MapLibre map.
     const ActiveMap = MapLibre?.Map;
     const ActiveCamera = MapLibre?.Camera;
     const ActiveMarker = MapLibre?.Marker;
     const ActiveUserLocation = MapLibre?.UserLocation;
 
-    if (!isMapSupported || !ActiveMap || !ActiveCamera || !ActiveMarker) {
-      // Web fallback: hospital search and cards still work.
+    if (!ActiveMap || !ActiveCamera || !ActiveMarker) {
       return (
         <View
           style={[
@@ -703,7 +843,7 @@ export default function HospitalsScreen() {
           </Text>
 
           <Text style={styles.mapFallbackText}>
-            The map is available in the Android and iOS apps. Hospital search still works here.
+            Map module is not available in this build.
           </Text>
         </View>
       );

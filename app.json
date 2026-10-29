@@ -2,7 +2,7 @@
   "expo": {
     "name": "health-saathi-mobile",
     "slug": "health-saathi-mobile",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "healthsaathimobile",
@@ -20,6 +20,7 @@
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "resize",
       "package": "com.sawan_mandalwar.healthsaathimobile",
+      "versionCode": 2,
       "permissions": [
         "android.permission.SCHEDULE_EXACT_ALARM"
       ]
