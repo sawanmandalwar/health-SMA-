@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Health Saathi - Android App</title>
+<meta name="description" content="Download and install the Health Saathi Android app." />
+<style>
+  :root { --brand: #208AEF; --brand-dark: #1466b8; --text: #1b2733; --muted: #5b6b7b; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--text); background: #f4f8fd; display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .card {
+    width: 100%; max-width: 440px; background: #fff; border-radius: 20px; padding: 32px 28px 28px;
+    box-shadow: 0 12px 40px rgba(32, 138, 239, 0.12); text-align: center;
+  }
+  .icon {
+    width: 88px; height: 88px; margin: 0 auto 18px; border-radius: 22px;
+    background: linear-gradient(135deg, #208AEF, #39c0a4); display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 40px; font-weight: 700; letter-spacing: -1px;
+  }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: 15px; margin: 0 0 24px; }
+  .btn {
+    display: block; width: 100%; padding: 16px; border-radius: 12px; background: var(--brand); color: #fff;
+    font-size: 17px; font-weight: 600; text-decoration: none; transition: background .15s ease;
+  }
+  .btn:hover { background: var(--brand-dark); }
+  .meta { margin: 12px 0 24px; font-size: 13px; color: var(--muted); }
+  .steps { text-align: left; background: #f7fafd; border-radius: 12px; padding: 16px 18px; margin: 0 0 20px; }
+  .steps h2 { font-size: 14px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .steps ol { margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.7; }
+  .note { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 0; }
+  a { color: var(--brand); }
+</style>
+</head>
+<body>
+  <main class="card">
+    <div class="icon">HS</div>
+    <h1>Health Saathi</h1>
+    <p class="sub">Your health companion for medicines, reminders and nearby care.</p>
+
+    <a class="btn" href="https://github.com/sawanmandalwar/health-SMA-/releases/download/v1.0.0/health-saathi-v1.0.0.apk">
+      Download APK
+    </a>
+    <p class="meta">Version 1.0.0 &middot; 157 MB &middot; Android 7.0+</p>
+
+    <div class="steps">
+      <h2>How to install</h2>
+      <ol>
+        <li>Tap <strong>Download APK</strong> above.</li>
+        <li>Open the downloaded file from your notifications or Downloads.</li>
+        <li>If asked, allow <strong>Install unknown apps</strong> for your browser.</li>
+        <li>Tap <strong>Install</strong>, then open Health Saathi.</li>
+      </ol>
+    </div>
+
+    <p class="note">
+      This is a direct install build distributed outside the Play Store.
+      Android may show a security warning; this is normal for APK installs.
+    </p>
+  </main>
+</body>
+</html>
