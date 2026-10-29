@@ -157,6 +157,13 @@ export function useHeaderNotifications() {
     [],
   );
 
+  // Fetch on mount so the bell badge is current from the first render.
+  useEffect(() => {
+    (async () => {
+      await fetchNotifications();
+    })();
+  }, [fetchNotifications]);
+
   // Fresh data on every screen focus so the badge is always current.
   useFocusEffect(
     useCallback(() => {
