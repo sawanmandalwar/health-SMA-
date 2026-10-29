@@ -9,6 +9,18 @@ const {
 } = require("../services/missedAppointmentScheduler");
 const { isEmailProviderConfigured } = require("../services/emailService");
 
+function getEmailDiagnostics() {
+  const provider =
+    String(process.env.EMAIL_PROVIDER || "").trim().toLowerCase() || "disabled";
+
+  return {
+    provider,
+    hasResendKey: Boolean(String(process.env.RESEND_API_KEY || "").trim()),
+    hasFrom: Boolean(String(process.env.EMAIL_FROM || "").trim()),
+    configured: isEmailProviderConfigured(),
+  };
+}
+
 // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is
 // configured for the project. A query-string secret is also accepted so an
 // external cron service (e.g. cron-job.org) can trigger the sweep.
@@ -70,6 +82,7 @@ async function handleSweep(req, res) {
   return res.status(failed ? 500 : 200).json({
     success: !failed,
     emailConfigured: isEmailProviderConfigured(),
+    email: getEmailDiagnostics(),
     ...(reminders && reminders.ok ? reminders : {}),
     reminders,
     missedDoses,
