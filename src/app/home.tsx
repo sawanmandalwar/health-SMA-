@@ -1044,7 +1044,7 @@ const nextAppointmentBadgeText = (() => {
                       </Pressable>
                     </View>
                   ) : (
-                    medicines.map((medicine) => (
+                    medicines.slice(0, 5).map((medicine) => (
                       <MedicineRow
                         key={medicine.id}
                         name={medicine.name}
