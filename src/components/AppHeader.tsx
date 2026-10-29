@@ -58,7 +58,7 @@ export default function AppHeader() {
 
   const isMobile = width < 600;
 
-  const { userPhoto, displayName, avatarLetter } = useHeaderUser();
+  const { userPhoto, setUserPhoto, displayName, avatarLetter } = useHeaderUser();
 
   const {
     notificationsOpen,
@@ -69,6 +69,7 @@ export default function AppHeader() {
     notificationsError,
     fetchNotifications,
     markNotificationRead,
+    deleteNotification,
   } = useHeaderNotifications();
 
   const dropdownWidth = Math.min(360, width - 32);
@@ -192,6 +193,7 @@ export default function AppHeader() {
                     onPress={() =>
                       !item.isRead && markNotificationRead(item._id)
                     }
+                    onDelete={deleteNotification}
                   />
                 ))}
               </ScrollView>
@@ -213,6 +215,7 @@ export default function AppHeader() {
               contentFit="cover"
               transition={120}
               recyclingKey={userPhoto}
+              onError={() => setUserPhoto('')}
             />
           ) : (
             <Text style={styles.avatarText}>{avatarLetter}</Text>
@@ -226,16 +229,18 @@ export default function AppHeader() {
 function NotificationRow({
   item,
   onPress,
+  onDelete,
 }: {
   item: HeaderNotification;
   onPress: () => void;
+  onDelete?: (id: string) => void;
 }) {
   const icon =
     item.type === 'Medicine'
       ? 'medical-outline'
       : item.type === 'Appointment'
-      ? 'calendar-outline'
-      : 'information-circle-outline';
+        ? 'calendar-outline'
+        : 'information-circle-outline';
 
   const iconColor =
     item.type === 'Appointment' ? COLORS.primaryGreen : COLORS.primaryBlue;
@@ -254,6 +259,22 @@ function NotificationRow({
           <Text style={styles2.notificationItemTitle}>{item.title}</Text>
 
           {!item.isRead && <View style={styles2.notificationUnreadDot} />}
+
+          {onDelete && (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation();
+                onDelete(item._id);
+              }}
+              style={styles2.notificationDeleteButton}
+            >
+              <Ionicons
+                name="trash-outline"
+                size={16}
+                color={COLORS.secondaryText}
+              />
+            </Pressable>
+          )}
         </View>
 
         <Text style={styles2.notificationItemMessage}>{item.message}</Text>
@@ -342,6 +363,11 @@ const styles2 = StyleSheet.create({
     fontFamily: 'Inter_500Medium',
     fontSize: 11,
     color: COLORS.primaryBlue,
+  },
+
+  notificationDeleteButton: {
+    padding: 4,
+    marginLeft: 8,
   },
 });
 

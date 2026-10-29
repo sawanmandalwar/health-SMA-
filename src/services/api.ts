@@ -157,6 +157,12 @@ if (API_DEBUG) {
 }
 
 function joinApiPath(baseUrl: string, path: string): string {
+  // If the path is already an absolute URL, return it as-is so callers
+  // (e.g. profile photo URLs) are never double-prefixed with the API base.
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
   const suffix = path.startsWith('/') ? path : `/${path}`;
   let base = baseUrl;
 

@@ -720,6 +720,7 @@ useFocusEffect(
                   style={styles.avatarImage}
                   contentFit="cover"
                   transition={150}
+                  onError={() => setPhotoUri('')}
                 />
               ) : (
                 <Text style={styles.avatarText}>
@@ -1194,6 +1195,7 @@ useFocusEffect(
               source={{ uri: photoUri || undefined }}
               style={styles.photoViewerImage}
               contentFit="contain"
+              onError={() => setPhotoUri('')}
             />
           </Pressable>
 

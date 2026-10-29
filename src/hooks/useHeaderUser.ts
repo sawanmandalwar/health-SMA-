@@ -97,5 +97,11 @@ export function useHeaderUser() {
 
   const avatarLetter = (userName.trim().charAt(0) || 'U').toUpperCase();
 
-  return { userName, userPhoto, displayName, avatarLetter };
+  return {
+    userName,
+    userPhoto,
+    setUserPhoto,
+    displayName,
+    avatarLetter,
+  };
 }

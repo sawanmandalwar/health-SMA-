@@ -712,12 +712,26 @@ export default function HospitalsScreen() {
 
   const openDirections = useCallback(
     (hospital: Hospital) => {
+      const origin = userCoordsRef.current;
+
+      if (!origin) {
+        showToast(
+          'Location unavailable — enable location access to get driving directions.',
+        );
+        return;
+      }
+
+      const originStr = encodeURIComponent(
+        `${origin.latitude},${origin.longitude}`,
+      );
       const destination = encodeURIComponent(
         `${hospital.latitude},${hospital.longitude}`,
       );
 
+      // origin + travelmode=driving makes Google Maps compute a real
+      // driving route from the user's GPS position to the hospital.
       const url =
-        `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+        `https://www.google.com/maps/dir/?api=1&origin=${originStr}&destination=${destination}&travelmode=driving`;
 
       Linking.openURL(url).catch(() => {
         showToast('Unable to open directions');

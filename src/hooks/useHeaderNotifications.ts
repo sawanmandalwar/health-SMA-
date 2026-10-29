@@ -117,6 +117,46 @@ export function useHeaderNotifications() {
     [],
   );
 
+  const deleteNotification = useCallback(
+    async (notificationId: string) => {
+      try {
+        const token = await AsyncStorage.getItem('authToken');
+
+        if (!token) {
+          setNotificationsError(
+            'Please log in again to update notifications.',
+          );
+          return;
+        }
+
+        const response = await apiFetch(
+          `/api/notifications/${notificationId}`,
+          {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
+        const data = await parseJson(response);
+
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || 'Could not delete notification.');
+        }
+
+        setNotifications((current) =>
+          current.filter((item) => item._id !== notificationId),
+        );
+        setUnreadCount((current) => Math.max(0, current - 1));
+      } catch (error) {
+        console.log('Delete notification failed:', error);
+        setNotificationsError(
+          'Could not delete this notification. Please try again.',
+        );
+      }
+    },
+    [],
+  );
+
   // Fresh data on every screen focus so the badge is always current.
   useFocusEffect(
     useCallback(() => {
@@ -144,5 +184,6 @@ export function useHeaderNotifications() {
     notificationsError,
     fetchNotifications,
     markNotificationRead,
+    deleteNotification,
   };
 }
