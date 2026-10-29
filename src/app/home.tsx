@@ -714,25 +714,12 @@ const nextAppointmentBadgeText = (() => {
               label="Scan Prescription"
 
               onPress={() => router.push('/scan')}
-
             />
 
-
-
-            <SidebarItem
-
-              icon="time-outline"
-
-              label="Medicine History"
-
-              onPress={() => {}}
-
-            />
 
 
 
           </View>
-
         )}
 
 
@@ -760,6 +747,8 @@ const nextAppointmentBadgeText = (() => {
 
 
           <ScrollView
+
+            style={{ flex: 1 }}
 
             showsVerticalScrollIndicator={false}
 
@@ -2905,7 +2894,7 @@ notificationDropdown: {
 
     gap: 27,
 
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
 
   },
 
@@ -3127,7 +3116,7 @@ notificationDropdown: {
 
   rightColumn: {
 
-    flex: 0.85,
+    flex: 1,
 
   },
 
