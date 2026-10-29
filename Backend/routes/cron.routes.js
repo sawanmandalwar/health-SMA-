@@ -7,6 +7,7 @@ const { runMissedDoseSweep } = require("../services/missedDoseScheduler");
 const {
   runMissedAppointmentSweep,
 } = require("../services/missedAppointmentScheduler");
+const { isEmailProviderConfigured } = require("../services/emailService");
 
 // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is
 // configured for the project. A query-string secret is also accepted so an
@@ -68,6 +69,7 @@ async function handleSweep(req, res) {
 
   return res.status(failed ? 500 : 200).json({
     success: !failed,
+    emailConfigured: isEmailProviderConfigured(),
     ...(reminders && reminders.ok ? reminders : {}),
     reminders,
     missedDoses,
