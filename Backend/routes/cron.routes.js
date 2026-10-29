@@ -3,6 +3,10 @@ const express = require("express");
 const router = express.Router();
 
 const { runReminderSweep } = require("../services/reminderSweep");
+const { runMissedDoseSweep } = require("../services/missedDoseScheduler");
+const {
+  runMissedAppointmentSweep,
+} = require("../services/missedAppointmentScheduler");
 
 // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` when CRON_SECRET is
 // configured for the project. A query-string secret is also accepted so an
@@ -24,6 +28,26 @@ function isAuthorized(req) {
   return String(req.query.secret || "") === secret;
 }
 
+async function runSweep(name, run) {
+  try {
+    return { ok: true, ...(await run()) };
+  } catch (error) {
+    console.error(
+      `${name} cron error:`,
+      error && error.message ? error.message : error
+    );
+
+    return {
+      ok: false,
+      error: name === "reminders" ? "reminder_sweep_failed" : `${name}_failed`,
+    };
+  }
+}
+
+// The missed-dose sweep marks overdue doses as missed and emails the caregiver
+// once the configured threshold is reached. The missed-appointment sweep does
+// the same for appointments. Both used to run only from in-process timers,
+// which never fire on Vercel, so the cron endpoint drives them here as well.
 async function handleSweep(req, res) {
   if (!isAuthorized(req)) {
     return res.status(401).json({
@@ -32,24 +56,23 @@ async function handleSweep(req, res) {
     });
   }
 
-  try {
-    const summary = await runReminderSweep();
+  const [reminders, missedDoses, missedAppointments] = await Promise.all([
+    runSweep("reminders", () => runReminderSweep()),
+    runSweep("missedDoses", () => runMissedDoseSweep()),
+    runSweep("missedAppointments", () => runMissedAppointmentSweep()),
+  ]);
 
-    return res.status(200).json({
-      success: true,
-      ...summary,
-    });
-  } catch (error) {
-    console.error(
-      "Reminder cron error:",
-      error && error.message ? error.message : error
-    );
+  const failed = [reminders, missedDoses, missedAppointments].some(
+    (result) => result && result.ok === false
+  );
 
-    return res.status(500).json({
-      success: false,
-      message: "Reminder sweep failed",
-    });
-  }
+  return res.status(failed ? 500 : 200).json({
+    success: !failed,
+    ...(reminders && reminders.ok ? reminders : {}),
+    reminders,
+    missedDoses,
+    missedAppointments,
+  });
 }
 
 router.get("/reminders", handleSweep);
