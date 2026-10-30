@@ -1865,9 +1865,11 @@ const styles = StyleSheet.create({
   // ==================================================
 
   map: {
-    height: 338,
+    height: 380,
 
-    width: '100%',
+    width: '90%',
+
+    alignSelf: 'center',
 
     backgroundColor: COLORS.mapBackground,
 
@@ -1886,7 +1888,11 @@ const styles = StyleSheet.create({
 
 
   mapMobile: {
-    height: 300,
+    height: 340,
+
+    width: '90%',
+
+    alignSelf: 'center',
   },
 
 
