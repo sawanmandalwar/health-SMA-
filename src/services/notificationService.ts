@@ -7,19 +7,18 @@ import { apiFetch } from './api';
 
 type NotificationsModule = typeof import('expo-notifications');
 
-// Expo Go on Android can no longer load expo-notifications: remote push
-// support was removed in SDK 53 and importing the package throws before any
-// screen can render. Local reminders stay available in development builds,
-// standalone builds, and Expo Go on iOS.
+// Expo Go on Android no longer supports remote push, but LOCAL notifications
+// (scheduled reminders) still work in SDK 57. Only block web, which uses
+// Web Push instead of expo-notifications.
+const notificationsSupported = Platform.OS !== 'web';
+
+// Remote push tokens are only available in development/standalone builds.
 const isExpoGo =
   isRunningInExpoGo() || Constants.appOwnership === 'expo';
 
-const notificationsSupported =
-  Platform.OS !== 'web' && !(Platform.OS === 'android' && isExpoGo);
-
 let notificationsPromise: Promise<NotificationsModule | null> | null = null;
 
-// Load expo-notifications lazily so Expo Go on Android never evaluates the
+// Load expo-notifications lazily so the web bundle never evaluates the
 // module. The handler is registered once, after the module is available.
 function getNotifications(): Promise<NotificationsModule | null> {
   if (!notificationsSupported) {
