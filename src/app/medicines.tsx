@@ -2299,6 +2299,8 @@ const deleteMedicine = async (id: string) => {
               showsVerticalScrollIndicator={
                 false
               }
+
+              keyboardShouldPersistTaps="handled"
             >
 
               {/* MEDICINE NAME */}
@@ -3066,15 +3068,12 @@ const deleteMedicine = async (id: string) => {
 
 
             {/* ================================================= */}
-            {/* MODAL BUTTONS */}
+            {/* MODAL BUTTONS (fixed footer, outside scroll) */}
             {/* ================================================= */}
 
             <View
               style={[
-                styles.modalButtons,
-
-                isMobile &&
-                  styles.modalButtonsMobile,
+                styles.modalButtonsFooter,
               ]}
             >
 
@@ -4393,6 +4392,12 @@ const styles =
     maxHeight: '90%',
 
     padding: 28,
+
+    flex: 1,
+
+    flexDirection: 'column',
+
+    justifyContent: 'space-between',
   },
 
 
@@ -4440,17 +4445,14 @@ const styles =
 
 
   modalForm: {
-    flexGrow: 0,
+    flexGrow: 1,
   },
 
 
   modalFormContent: {
-    flexDirection: 'row',
+    flexDirection: 'column',
 
-    flexWrap: 'wrap',
-
-    justifyContent:
-      'space-between',
+    gap: 12,
 
     paddingBottom: 5,
   },
@@ -4534,6 +4536,19 @@ const styles =
     alignItems: 'stretch',
 
     gap: 9,
+  },
+
+
+  modalButtonsFooter: {
+    flexDirection: 'row',
+
+    justifyContent: 'flex-end',
+
+    alignItems: 'center',
+
+    gap: 10,
+
+    marginTop: 12,
   },
 
 
@@ -4795,11 +4810,17 @@ const styles =
     gap: 8,
 
     marginBottom: 10,
+
+    flexWrap: 'wrap',
   },
 
 
   scheduleTimeInput: {
     flex: 1,
+
+    flexShrink: 1,
+
+    minWidth: 120,
   },
 
 
