@@ -1,28 +1,12 @@
 const express = require("express");
-const fs = require("fs");
-const path = require("path");
 const multer = require("multer");
 
 const User = require("../models/User");
 const auth = require("../middleware/auth");
 const { isValidTimeZone } = require("../services/timezoneService");
+const { uploadImage, deleteImage } = require("../services/cloudinary");
 
 const router = express.Router();
-
-// Profile photos are served from /uploads/avatars by server.js.
-const AVATARS_DIR = path.join(__dirname, "..", "uploads", "avatars");
-
-// Pick a safe file extension from the uploaded MIME type (fall back to
-// jpg for unknown image/* types).
-function getPhotoExtension(file) {
-  const mime = String(file?.mimetype || "").toLowerCase();
-
-  if (mime === "image/png") return "png";
-  if (mime === "image/webp") return "webp";
-  if (mime === "image/gif") return "gif";
-
-  return "jpg";
-}
 
 const avatarUpload = multer({
   storage: multer.memoryStorage(),
@@ -38,10 +22,8 @@ const avatarUpload = multer({
       "png",
       "webp",
       "gif",
-    ].includes(path.extname(originalName).replace(".", ""));
+    ].includes(require("path").extname(originalName).replace(".", ""));
 
-    // Some clients send unknown MIME types for images, so the extension
-    // is accepted as a fallback.
     if (mimeIsImage || extensionIsImage) {
       cb(null, true);
     } else {
@@ -182,45 +164,26 @@ router.post(
         });
       }
 
-      // Make sure the upload folder exists.
-      if (!fs.existsSync(AVATARS_DIR)) {
-        fs.mkdirSync(AVATARS_DIR, { recursive: true });
-      }
-
-      // Delete the previous photo so the uploads folder stays small.
-      if (user.photoUrl) {
-        const previousName = String(user.photoUrl).split("/").pop();
-
-        if (previousName && previousName !== req.file.filename) {
-          const previousPath = path.join(
-            AVATARS_DIR,
-            path.basename(previousName)
+      // Delete the previous Cloudinary image if one exists.
+      if (user.photoUrl && user.photoUrl.includes("cloudinary.com")) {
+        await deleteImage(user.photoUrl).catch((cleanupError) => {
+          console.warn(
+            "Could not delete previous Cloudinary profile photo:",
+            cleanupError && cleanupError.message
+              ? cleanupError.message
+              : cleanupError
           );
-
-          if (fs.existsSync(previousPath)) {
-            try {
-              fs.unlinkSync(previousPath);
-            } catch (cleanupError) {
-              console.warn(
-                "Could not delete previous profile photo:",
-                cleanupError && cleanupError.message
-                  ? cleanupError.message
-                  : cleanupError
-              );
-            }
-          }
-        }
+        });
       }
 
-      // Save as <userId>-<timestamp>.<ext> so devices can't be served a
-      // cached image after a re-upload.
-      const extension = getPhotoExtension(req.file);
-      const filename = `${String(req.userId)}-${Date.now()}.${extension}`;
-      const filePath = path.join(AVATARS_DIR, filename);
+      // Upload to Cloudinary and save the secure_url.
+      const { secure_url } = await uploadImage(
+        req.file.buffer,
+        req.file.originalname,
+        req.userId
+      );
 
-      fs.writeFileSync(filePath, req.file.buffer);
-
-      user.photoUrl = `/uploads/avatars/${filename}`;
+      user.photoUrl = secure_url;
       await user.save();
 
       const sanitized = user.toObject();
@@ -260,25 +223,16 @@ router.delete("/photo", auth, async (req, res) => {
       });
     }
 
-    if (user.photoUrl) {
-      const fileName = String(user.photoUrl).split("/").pop();
-
-      if (fileName) {
-        const filePath = path.join(AVATARS_DIR, path.basename(fileName));
-
-        if (fs.existsSync(filePath)) {
-          try {
-            fs.unlinkSync(filePath);
-          } catch (cleanupError) {
-            console.warn(
-              "Could not delete profile photo:",
-              cleanupError && cleanupError.message
-                ? cleanupError.message
-                : cleanupError
-            );
-          }
-        }
-      }
+    // Delete from Cloudinary if the URL is a Cloudinary URL.
+    if (user.photoUrl && user.photoUrl.includes("cloudinary.com")) {
+      await deleteImage(user.photoUrl).catch((cleanupError) => {
+        console.warn(
+          "Could not delete Cloudinary profile photo:",
+          cleanupError && cleanupError.message
+            ? cleanupError.message
+            : cleanupError
+        );
+      });
     }
 
     user.photoUrl = "";
