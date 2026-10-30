@@ -77,6 +77,14 @@ const appointmentSchema = new mongoose.Schema(
       default: false,
     },
 
+    // When the in-app bell reminder was first created for this appointment.
+    // Used to backfill existing appointments once without recreating a
+    // notification the user deleted.
+    notificationCreatedAt: {
+      type: Date,
+      default: null,
+    },
+
     // Set (with status moved to "Previous") once the appointment time has
     // passed the grace window without the user completing it.
     missedAt: {

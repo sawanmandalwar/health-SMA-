@@ -41,6 +41,7 @@ type NotificationsContextValue = {
   notificationsLoading: boolean;
   notificationsError: string;
   fetchNotifications: () => Promise<void>;
+  checkReminders: () => Promise<void>;
   markNotificationRead: (notificationId: string) => Promise<void>;
   deleteNotification: (notificationId: string) => Promise<void>;
 };
@@ -220,10 +221,39 @@ export function NotificationsProvider({
     [notifications, fetchNotifications],
   );
 
+  // Vercel does not run in-process schedulers, so ask the backend to send any
+  // due reminders while the app is open. Idempotent on the server.
+  const checkReminders = useCallback(async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+
+      if (!token) return;
+
+      await apiFetch('/api/notifications/check-reminders', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (error) {
+      console.log('Check reminders failed:', error);
+    }
+  }, []);
+
   // Refresh on mount and every time the route changes.
   useEffect(() => {
     void fetchNotifications();
-  }, [fetchNotifications, pathname]);
+    void checkReminders();
+  }, [fetchNotifications, checkReminders, pathname]);
+
+  // Poll while the app is open so due reminders are sent and the bell stays
+  // current without a manual refresh.
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      void checkReminders();
+      void fetchNotifications();
+    }, 60 * 1000);
+
+    return () => clearInterval(intervalId);
+  }, [checkReminders, fetchNotifications]);
 
   const value: NotificationsContextValue = {
     notifications,
@@ -231,6 +261,7 @@ export function NotificationsProvider({
     notificationsLoading,
     notificationsError,
     fetchNotifications,
+    checkReminders,
     markNotificationRead,
     deleteNotification,
   };

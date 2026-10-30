@@ -15,6 +15,12 @@ const {
   syncMedicineNotifications,
 } = require('../services/notificationService');
 const {
+  syncAppointmentNotificationsForUser,
+} = require('../services/appointmentNotificationService');
+const {
+  runReminderSweepForUser,
+} = require('../services/reminderSweep');
+const {
   processMissedDosesForUser,
 } = require('../services/missedDoseService');
 const {
@@ -44,6 +50,10 @@ router.get('/', authMiddleware, async (req, res) => {
       );
     }
 
+    // Backfill bell entries for appointments created before reminders were
+    // generated on save, so existing appointments show up too.
+    await syncAppointmentNotificationsForUser(userId);
+
     const notifications = await Notification.find({ userId })
       .sort({ createdAt: -1 })
       .limit(100);
@@ -64,6 +74,27 @@ router.get('/', authMiddleware, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch notifications',
+    });
+  }
+});
+
+// POST: Run due medicine/appointment reminders for the logged-in user.
+// Vercel does not run in-process schedulers, so the web app calls this while it
+// is open. An external cron can still call /api/cron/reminders for closed tabs.
+router.post('/check-reminders', authMiddleware, async (req, res) => {
+  try {
+    const summary = await runReminderSweepForUser(req.userId);
+
+    res.status(200).json({
+      success: true,
+      ...summary,
+    });
+  } catch (error) {
+    console.error('Check reminders error:', error);
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check reminders',
     });
   }
 });

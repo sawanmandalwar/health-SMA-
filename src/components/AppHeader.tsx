@@ -66,6 +66,7 @@ export default function AppHeader() {
     notificationsLoading,
     notificationsError,
     fetchNotifications,
+    checkReminders,
     markNotificationRead,
     deleteNotification,
   } = useHeaderNotifications();
@@ -81,6 +82,7 @@ export default function AppHeader() {
 
     if (nextOpen) {
       void fetchNotifications();
+      void checkReminders();
     }
   };
 

@@ -294,6 +294,67 @@ async function collectSubscribedUserIds() {
 
 // Sweep every user that has at least one active browser subscription and push
 // any medicine/appointment reminder that became due inside the window.
+// Process reminders for one user. Vercel does not run in-process timers, so
+// the API also triggers this opportunistically for the active user.
+async function runReminderSweepForUser(userId, options = {}) {
+  const now =
+    options.now instanceof Date && !Number.isNaN(options.now.getTime())
+      ? options.now
+      : new Date();
+  const windowMs =
+    typeof options.windowMs === "number" && options.windowMs > 0
+      ? options.windowMs
+      : getReminderWindowMs();
+
+  const summary = {
+    configured: isWebPushConfigured(),
+    users: 0,
+    remindersSent: 0,
+    notificationsDelivered: 0,
+    remindersFailed: 0,
+    errors: 0,
+  };
+
+  if (!summary.configured) {
+    summary.reason = "vapid_not_configured";
+    return summary;
+  }
+
+  try {
+    const user = await User.findById(userId).select("timezone").lean();
+
+    if (!user) return summary;
+
+    summary.users = 1;
+
+    const timeZone = normalizeTimeZone(user.timezone);
+
+    await processMedicineReminders({
+      userId,
+      now,
+      timeZone,
+      windowMs,
+      summary,
+    });
+
+    await processAppointmentReminders({
+      userId,
+      now,
+      timeZone,
+      windowMs,
+      summary,
+    });
+  } catch (error) {
+    summary.errors += 1;
+    console.error(
+      "Reminder sweep user error:",
+      error && error.message ? error.message : error
+    );
+  }
+
+  return summary;
+}
+
 async function runReminderSweep(options = {}) {
   const now =
     options.now instanceof Date && !Number.isNaN(options.now.getTime())
@@ -397,5 +458,6 @@ function startReminderScheduler() {
 module.exports = {
   getReminderWindowMs,
   runReminderSweep,
+  runReminderSweepForUser,
   startReminderScheduler,
 };
