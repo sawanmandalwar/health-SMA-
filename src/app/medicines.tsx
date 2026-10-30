@@ -2473,8 +2473,8 @@ const deleteMedicine = async (id: string) => {
                           }
                           placeholder="Select time"
                           style={{
-                            flex: 1,
-                            width: 'auto',
+                            flexShrink: 1,
+                            minWidth: 140,
                             minHeight: 52,
                             backgroundColor: '#E7F3F5',
                             borderColor: '#C9E0E5',

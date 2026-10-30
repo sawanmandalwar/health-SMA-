@@ -1848,6 +1848,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
 
     justifyContent: 'center',
+
+    flexShrink: 0,
   },
 
 
