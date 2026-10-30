@@ -38,6 +38,7 @@ import {
   getApiErrorMessage,
   parseJson,
 } from '../services/api';
+import { showMessage } from '../utils/confirm-action';
 
 const COLORS = {
   primaryBlue: '#1E76B6',
@@ -160,6 +161,7 @@ export default function CaregiverScreen() {
   const [alertsEnabled, setAlertsEnabled] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isSendingTest, setIsSendingTest] = useState(false);
   const [loadState, setLoadState] =
     useState<LoadState>('loading');
   const [loadError, setLoadError] = useState('');
@@ -433,7 +435,7 @@ export default function CaregiverScreen() {
         );
       }
 
-      Alert.alert(
+      showMessage(
         'Settings Saved',
         'Your caregiver settings have been saved to your account. Email alerts are sent to your caregiver when consecutive doses are missed.'
       );
@@ -443,9 +445,72 @@ export default function CaregiverScreen() {
       )} Your changes were not saved on the server.`;
 
       setSaveError(message);
-      Alert.alert('Save Failed', message);
+      showMessage('Save Failed', message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const sendTestEmail = async () => {
+    if (isSaving || isSendingTest || isLoading) {
+      return;
+    }
+
+    const savedEmail = email.trim().toLowerCase();
+
+    if (!savedEmail || !EMAIL_PATTERN.test(savedEmail)) {
+      const message =
+        'Save a valid caregiver email address before sending a test email.';
+      setErrors((previous) => ({ ...previous, email: message }));
+      return;
+    }
+
+    const token = await AsyncStorage.getItem('authToken');
+
+    if (!token) {
+      redirectToLogin();
+      return;
+    }
+
+    setIsSendingTest(true);
+    setSaveError('');
+
+    try {
+      const response = await apiFetch('/api/caregiver/test-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: '{}',
+      });
+
+      if (response.status === 401) {
+        redirectToLogin();
+        return;
+      }
+
+      const data = await parseJson<CaregiverResponse>(response);
+
+      if (!response.ok) {
+        throw new Error(
+          typeof data?.message === 'string' && data.message.trim()
+            ? data.message
+            : 'Could not send the test email.'
+        );
+      }
+
+      showMessage(
+        'Test Email Sent',
+        `A test email was sent to ${savedEmail}. Check the inbox and spam folder. If it does not arrive, the Gmail sender configuration needs attention.`
+      );
+    } catch (error) {
+      const message = getCaregiverError(error);
+
+      setSaveError(message);
+      showMessage('Test Email Failed', message);
+    } finally {
+      setIsSendingTest(false);
     }
   };
 
@@ -702,6 +767,37 @@ export default function CaregiverScreen() {
                 {isSaving ? 'Saving...' : 'Save Settings'}
               </Text>
             </Pressable>
+
+            <Pressable
+              onPress={sendTestEmail}
+              disabled={isSaving || isSendingTest || isLoading}
+              style={({ pressed }) => [
+                styles.testButton,
+                (pressed || isSendingTest) && styles.testButtonPressed,
+                (isSaving || isLoading) && styles.testButtonDisabled,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Send a test caregiver email"
+            >
+              {isSendingTest ? (
+                <ActivityIndicator color={COLORS.primaryBlue} />
+              ) : (
+                <Ionicons
+                  name="paper-plane-outline"
+                  size={18}
+                  color={COLORS.primaryBlue}
+                />
+              )}
+
+              <Text style={styles.testText}>
+                {isSendingTest ? 'Sending...' : 'Send Test Email'}
+              </Text>
+            </Pressable>
+
+            <Text style={styles.testHint}>
+              The test email goes to the caregiver email saved on your
+              account. Save your changes first if you just edited the address.
+            </Text>
               </>
             )}
           </View>
@@ -1008,5 +1104,40 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.white,
     marginLeft: 8,
+  },
+
+  testButton: {
+    height: 50,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: COLORS.primaryBlue,
+    backgroundColor: COLORS.white,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+
+  testButtonPressed: {
+    opacity: 0.7,
+  },
+
+  testButtonDisabled: {
+    opacity: 0.5,
+  },
+
+  testText: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 15,
+    color: COLORS.primaryBlue,
+    marginLeft: 8,
+  },
+
+  testHint: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 12,
+    color: COLORS.secondary,
+    lineHeight: 18,
+    marginTop: 10,
   },
 });

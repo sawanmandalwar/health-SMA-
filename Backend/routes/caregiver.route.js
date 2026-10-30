@@ -68,6 +68,35 @@ async function rearmOpenAlertsForSettings(userId, alertsEnabled) {
   return result.modifiedCount || 0;
 }
 
+// When the caregiver address itself changes, an alert already delivered to the
+// old address must be delivered again to the new one. Alerts are marked "sent"
+// after the first successful delivery, so without this re-arm the new
+// caregiver would never hear about an episode that is still open.
+async function rearmSentAlertsForEmailChange(userId, alertsEnabled) {
+  if (!alertsEnabled) {
+    return 0;
+  }
+
+  const result = await MissedDoseAlert.updateMany(
+    {
+      userId,
+      status: "open",
+      caregiverEmailStatus: "sent",
+    },
+    {
+      $set: {
+        caregiverEmailStatus: "pending",
+        caregiverEmailRetryable: true,
+        caregiverEmailLastError: "",
+        caregiverEmailAttempts: 0,
+        caregiverEmailLastAttemptAt: null,
+      },
+    }
+  );
+
+  return result.modifiedCount || 0;
+}
+
 const serializeSettings = (settings) => ({
   id: settings._id,
   userId: settings.userId,
@@ -163,6 +192,10 @@ router.put("/", auth, async (req, res) => {
       });
     }
 
+    const previousSettings = await CaregiverSettings.findOne({
+      userId: req.userId,
+    });
+
     const settings = await CaregiverSettings.findOneAndUpdate(
       { userId: req.userId },
       {
@@ -189,6 +222,18 @@ router.put("/", auth, async (req, res) => {
         req.userId,
         settings.alertsEnabled
       );
+
+      const previousEmail = normalizeText(
+        previousSettings && previousSettings.email
+      ).toLowerCase();
+      const nextEmail = normalizeText(settings.email).toLowerCase();
+
+      if (previousEmail !== nextEmail) {
+        rearmedAlerts += await rearmSentAlertsForEmailChange(
+          req.userId,
+          settings.alertsEnabled
+        );
+      }
     } catch (rearmError) {
       // Settings are already saved; a re-arm failure must not fail the save.
       console.error("Re-arm caregiver alerts error:", rearmError);
