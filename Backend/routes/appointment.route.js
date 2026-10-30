@@ -3,9 +3,111 @@ const express = require("express");
 const mongoose = require("mongoose");
 
 const Appointment = require("../models/Appointment");
+const Notification = require("../models/Notification");
+const User = require("../models/User");
 const auth = require("../middleware/auth");
+const {
+  resolveAppointmentAt,
+} = require("../services/missedAppointmentService");
 
 const router = express.Router();
+
+// Keep an in-app bell entry in sync with an appointment so reminders are
+// visible on the Appointments screen immediately, not only after they are
+// missed.
+async function upsertAppointmentNotification(appointment, timeZone) {
+  try {
+    if (!appointment) return;
+
+    const key = `appointment:${String(appointment._id)}`;
+
+    if (appointment.reminder === false) {
+      await Notification.deleteOne({
+        userId: appointment.userId,
+        notificationKey: key,
+      });
+      return;
+    }
+
+    let scheduledFor = appointment.appointmentAt;
+
+    if (
+      !(scheduledFor instanceof Date) ||
+      Number.isNaN(scheduledFor.getTime())
+    ) {
+      scheduledFor = resolveAppointmentAt(appointment, timeZone);
+
+      if (scheduledFor) {
+        appointment.appointmentAt = scheduledFor;
+        await appointment.save();
+      }
+    }
+
+    const when = [appointment.date, appointment.time]
+      .filter(Boolean)
+      .join(" at ");
+
+    await Notification.findOneAndUpdate(
+      { userId: appointment.userId, notificationKey: key },
+      {
+        $set: {
+          title: `Appointment reminder: ${appointment.doctor}`,
+          message: `You have an appointment with ${appointment.doctor}${
+            appointment.hospital ? ` at ${appointment.hospital}` : ""
+          }${when ? ` on ${when}` : ""}.`,
+          type: "Appointment",
+          scheduledFor: scheduledFor || null,
+          medicineId: null,
+          doseId: null,
+        },
+        $setOnInsert: {
+          userId: appointment.userId,
+          notificationKey: key,
+          isRead: false,
+        },
+      },
+      { upsert: true, setDefaultsOnInsert: true }
+    );
+  } catch (error) {
+    console.error(
+      "Appointment notification sync error:",
+      error && error.message ? error.message : error
+    );
+  }
+}
+
+async function removeAppointmentNotifications(userId, appointmentIds = []) {
+  const ids = appointmentIds.filter(Boolean).map(String);
+
+  if (ids.length === 0) return;
+
+  const keys = [];
+
+  for (const id of ids) {
+    keys.push(`appointment:${id}`, `missed-appointment:${id}`);
+  }
+
+  try {
+    await Notification.deleteMany({
+      userId,
+      notificationKey: { $in: keys },
+    });
+  } catch (error) {
+    console.error(
+      "Appointment notification cleanup error:",
+      error && error.message ? error.message : error
+    );
+  }
+}
+
+async function getUserTimeZone(userId) {
+  try {
+    const user = await User.findById(userId).select("timezone");
+    return user ? user.timezone : undefined;
+  } catch (error) {
+    return undefined;
+  }
+}
 
 // ==========================================
 // ADD APPOINTMENT(S)
@@ -97,6 +199,14 @@ router.post("/", auth, async (req, res) => {
         ...baseAppointment,
         time: slot,
       }))
+    );
+
+    const timeZone = await getUserTimeZone(req.userId);
+
+    await Promise.all(
+      appointments.map((appointment) =>
+        upsertAppointmentNotification(appointment, timeZone)
+      )
     );
 
     res.status(201).json({
@@ -232,11 +342,22 @@ router.put("/:id", auth, async (req, res) => {
         await appointment.save();
       }
 
+      const removedAppointments = await Appointment.find({
+        userId: req.userId,
+        groupId: appointment.groupId,
+        _id: { $ne: appointment._id },
+      }).select("_id");
+
       await Appointment.deleteMany({
         userId: req.userId,
         groupId: appointment.groupId,
         _id: { $ne: appointment._id },
       });
+
+      await removeAppointmentNotifications(
+        req.userId,
+        removedAppointments.map((item) => item._id)
+      );
 
       const extras = desiredSlots.slice(1).map((slot) => ({
         userId: appointment.userId,
@@ -255,6 +376,14 @@ router.put("/:id", auth, async (req, res) => {
         created = await Appointment.create(extras);
       }
     }
+
+    const timeZone = await getUserTimeZone(req.userId);
+
+    await Promise.all(
+      [appointment, ...created].map((item) =>
+        upsertAppointmentNotification(item, timeZone)
+      )
+    );
 
     res.status(200).json({
       message: "Appointment updated successfully",
@@ -291,6 +420,8 @@ router.delete("/:id", auth, async (req, res) => {
       _id: req.params.id,
       userId: req.userId,
     });
+
+    await removeAppointmentNotifications(req.userId, [appointment._id]);
 
     res.status(200).json({
       message: "Appointment deleted successfully",
