@@ -244,7 +244,7 @@ function WebMap({
     <View style={[styles.map, styles.mapMobile]}>
       <MapContainer
         center={center}
-        zoom={13}
+        zoom={5}
         style={{ height: '100%', width: '100%' }}
         onClick={() => onHospitalPress(null)}
       >
