@@ -107,11 +107,13 @@ async function syncMedicineNotifications(
       scheduledDate: { $gte: todayStart, $lt: todayEnd },
     }));
 
+  // Prune past medicine reminders, but keep standalone alerts that are
+  // created for missed episodes/appointments so they stay visible in the bell.
   await Notification.deleteMany({
     userId,
     notificationKey: {
       $type: "string",
-      $not: /^missed-dose-episode:/,
+      $not: /^(missed-dose-episode|missed-appointment):/,
     },
     scheduledFor: { $lt: todayStart },
   });

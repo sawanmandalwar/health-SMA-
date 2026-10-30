@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 import {
   View,
@@ -61,8 +61,6 @@ export default function AppHeader() {
   const { userPhoto, setUserPhoto, displayName, avatarLetter } = useHeaderUser();
 
   const {
-    notificationsOpen,
-    setNotificationsOpen,
     notifications,
     unreadCount,
     notificationsLoading,
@@ -71,6 +69,22 @@ export default function AppHeader() {
     markNotificationRead,
     deleteNotification,
   } = useHeaderNotifications();
+
+  // The panel itself is per-header UI; the list itself lives in the shared
+  // provider so every screen shows the same notifications.
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  const toggleNotifications = () => {
+    const nextOpen = !notificationsOpen;
+
+    setNotificationsOpen(nextOpen);
+
+    if (nextOpen) {
+      void fetchNotifications();
+    }
+  };
+
+  const hasNotifications = notifications.length > 0;
 
   const dropdownWidth = Math.min(360, width - 32);
 
@@ -86,7 +100,7 @@ export default function AppHeader() {
       <View style={styles.headerRight}>
         {/* NOTIFICATION BELL + UNREAD BADGE */}
         <Pressable
-          onPress={() => setNotificationsOpen((open) => !open)}
+          onPress={toggleNotifications}
           accessibilityRole="button"
           accessibilityLabel="Open notifications"
           style={styles.bellButton}
@@ -147,13 +161,13 @@ export default function AppHeader() {
               </Pressable>
             </View>
 
-            {notificationsLoading ? (
+            {notificationsLoading && !hasNotifications ? (
               <View style={styles.notificationEmptyState}>
                 <Text style={styles.notificationEmptyText}>
                   Loading notifications...
                 </Text>
               </View>
-            ) : notificationsError ? (
+            ) : notificationsError && !hasNotifications ? (
               <View style={styles.notificationEmptyState}>
                 <Ionicons
                   name="alert-circle-outline"

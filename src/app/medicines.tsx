@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 
 import {
   View,
@@ -10,6 +10,7 @@ import {
   Modal,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -48,6 +49,7 @@ import {
   isValidMedicineTime,
 } from '../services/notificationService';
 import { requestReminderPermission } from '../services/reminderPermission';
+import { confirmAction, showMessage } from '../utils/confirm-action';
 
 import type { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
@@ -526,6 +528,18 @@ export default function MedicinesScreen() {
   const [refilling, setRefilling] =
     useState(false);
 
+  // Per-row action state so buttons respond immediately and cannot be
+  // double-submitted while a request is in flight.
+  const [deletingId, setDeletingId] =
+    useState<string | null>(null);
+
+  const [updatingDoses, setUpdatingDoses] =
+    useState<Record<string, boolean>>({});
+
+  const deleteInFlight = useRef(false);
+
+  const doseUpdatesInFlight = useRef<Set<string>>(new Set());
+
 
   // ====================================================
   // LOAD MEDICINES FROM MONGODB
@@ -999,70 +1013,68 @@ export default function MedicinesScreen() {
   // DELETE MEDICINE
 // ====================================================
 
-const deleteMedicine = (id: string) => {
-  Alert.alert(
-    'Delete Medicine',
-    'Are you sure you want to delete this medicine?',
-    [
-      {
-        text: 'Cancel',
-        style: 'cancel',
+const deleteMedicine = async (id: string) => {
+  if (deleteInFlight.current) return;
+
+  // Lock immediately so a second tap cannot open another confirm dialog.
+  deleteInFlight.current = true;
+
+  try {
+    const confirmed = await confirmAction({
+      title: 'Delete Medicine',
+      message:
+        'Are you sure you want to delete this medicine? Its scheduled reminders will also be removed.',
+      confirmText: 'Delete',
+    });
+
+    if (!confirmed) return;
+
+    setDeletingId(id);
+
+    const token = await AsyncStorage.getItem('authToken');
+
+    if (!token) {
+      showMessage('Login Required', 'Please login again.');
+      router.replace('/');
+      return;
+    }
+
+    const response = await apiFetch(`/api/medicines/${id}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${token}`,
       },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            const token = await AsyncStorage.getItem('authToken');
+    });
 
-            if (!token) {
-              Alert.alert('Login Required', 'Please login again.');
-              router.replace('/');
-              return;
-            }
+    const data = await parseJson(response);
 
-            const response = await apiFetch(
-              `/api/medicines/${id}`,
-              {
-                method: 'DELETE',
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              }
-            );
+    if (!response.ok) {
+      throw new Error(data.message || 'Unable to delete medicine');
+    }
 
-            const data = await parseJson(response);
+    // Cancel scheduled reminders, but never fail the delete over a local
+    // notification error.
+    try {
+      await cancelMedicineRemindersForMedicine(id);
+    } catch (reminderError) {
+      console.log('Reminder cancel error:', reminderError);
+    }
 
-            if (!response.ok) {
-              throw new Error(
-                data.message || 'Unable to delete medicine'
-              );
-            }
+    // Remove the row immediately instead of re-fetching the whole list.
+    setMedicines((current) =>
+      current.filter((medicine) => medicine.id !== id)
+    );
+  } catch (error) {
+    console.log('Medicine delete error:', error);
 
-            // Cancel all scheduled reminders for this medicine.
-            await cancelMedicineRemindersForMedicine(id);
-
-            // Refresh the medicine list.
-            await loadMedicines();
-
-            Alert.alert(
-              'Success',
-              'Medicine and its scheduled reminders have been deleted.'
-            );
-          } catch (error) {
-            console.log('Medicine delete error:', error);
-
-            Alert.alert(
-              'Error',
-              error instanceof Error
-                ? error.message
-                : 'Unable to delete medicine.'
-            );
-          }
-        },
-      },
-    ]
-  );
+    showMessage(
+      'Error',
+      error instanceof Error ? error.message : 'Unable to delete medicine.'
+    );
+  } finally {
+    deleteInFlight.current = false;
+    setDeletingId(null);
+  }
 };
 
 
@@ -1075,11 +1087,39 @@ const deleteMedicine = (id: string) => {
     dose: MedicineDose,
     status: 'Taken' | 'Missed'
   ) => {
+    const doseKey = `${medicine.id}:${dose.doseId}`;
+
+    if (doseUpdatesInFlight.current.has(doseKey)) return;
+    if (dose.status === status) return;
+
+    const previousStatus = dose.status;
+
+    doseUpdatesInFlight.current.add(doseKey);
+
+    setUpdatingDoses((current) => ({ ...current, [doseKey]: true }));
+
+    // Optimistically show the new status right away instead of waiting for a
+    // full list reload. This is what makes the button feel instant.
+    setMedicines((current) =>
+      current.map((item) =>
+        item.id === medicine.id
+          ? {
+              ...item,
+              todayDoses: item.todayDoses.map((entry) =>
+                entry.doseId === dose.doseId
+                  ? { ...entry, status }
+                  : entry
+              ),
+            }
+          : item
+      )
+    );
+
     try {
       const token = await AsyncStorage.getItem('authToken');
 
       if (!token) {
-        Alert.alert('Login Required', 'Please login again.');
+        showMessage('Login Required', 'Please login again.');
         router.replace('/');
         return;
       }
@@ -1105,15 +1145,78 @@ const deleteMedicine = (id: string) => {
         throw new Error(data.message || 'Unable to update dose status');
       }
 
-      await loadMedicines();
+      // Apply the authoritative server result (stock, overall status, doses)
+      // without a second round trip.
+      setMedicines((current) =>
+        current.map((item) => {
+          if (item.id !== medicine.id) return item;
+
+          // Only reconcile this dose; other doses may still have optimistic
+          // updates in flight and must not be overwritten by a stale response.
+          const serverDose = Array.isArray(data.doses)
+            ? data.doses.find(
+                (entry: any) =>
+                  String(entry.doseId) === String(dose.doseId)
+              )
+            : null;
+
+          return {
+            ...item,
+            status: (data.medicineStatus as MedicineStatus) || item.status,
+            todayDoses: item.todayDoses.map((entry) =>
+              entry.doseId === dose.doseId
+                ? {
+                    ...entry,
+                    status:
+                      (serverDose?.status as MedicineStatus) || entry.status,
+                  }
+                : entry
+            ),
+            remainingQuantity:
+              typeof data.stock?.remainingQuantity === 'number'
+                ? data.stock.remainingQuantity
+                : item.remainingQuantity,
+            estimatedRunOutDate:
+              data.stock?.estimatedRunOutDate ?? item.estimatedRunOutDate,
+            needsRefill:
+              typeof data.stock?.needsRefill === 'boolean'
+                ? data.stock.needsRefill
+                : item.needsRefill,
+          };
+        })
+      );
     } catch (error) {
       console.log('Dose status update error:', error);
-      Alert.alert(
+
+      // Revert the optimistic change so the UI matches the server.
+      setMedicines((current) =>
+        current.map((item) =>
+          item.id === medicine.id
+            ? {
+                ...item,
+                todayDoses: item.todayDoses.map((entry) =>
+                  entry.doseId === dose.doseId
+                    ? { ...entry, status: previousStatus }
+                    : entry
+                ),
+              }
+            : item
+        )
+      );
+
+      showMessage(
         'Error',
         error instanceof Error
           ? error.message
           : 'Unable to update dose status.'
       );
+    } finally {
+      doseUpdatesInFlight.current.delete(doseKey);
+      setUpdatingDoses((current) => {
+        const next = { ...current };
+        delete next[doseKey];
+        return next;
+      });
     }
   };
 
@@ -1488,9 +1591,22 @@ const deleteMedicine = (id: string) => {
                             )
                           }
 
-                          style={
-                            styles.doseActionButton
-                          }
+                          disabled={Boolean(
+                            updatingDoses[
+                              `${medicine.id}:${dose.doseId}`
+                            ]
+                          )}
+
+                          style={[
+                            styles.doseActionButton,
+
+                            Boolean(
+                              updatingDoses[
+                                `${medicine.id}:${dose.doseId}`
+                              ]
+                            ) &&
+                              styles.doseActionButtonDisabled,
+                          ]}
                         >
 
                           <Text
@@ -1513,9 +1629,22 @@ const deleteMedicine = (id: string) => {
                             )
                           }
 
-                          style={
-                            styles.doseActionButton
-                          }
+                          disabled={Boolean(
+                            updatingDoses[
+                              `${medicine.id}:${dose.doseId}`
+                            ]
+                          )}
+
+                          style={[
+                            styles.doseActionButton,
+
+                            Boolean(
+                              updatingDoses[
+                                `${medicine.id}:${dose.doseId}`
+                              ]
+                            ) &&
+                              styles.doseActionButtonDisabled,
+                          ]}
                         >
 
                           <Text
@@ -1690,18 +1819,32 @@ const deleteMedicine = (id: string) => {
               )
             }
 
-            style={
-              styles.iconButton
+            disabled={
+              deletingId === medicine.id
             }
+
+            style={[
+              styles.iconButton,
+
+              deletingId === medicine.id &&
+                styles.iconButtonDisabled,
+            ]}
           >
 
-            <Ionicons
-              name="trash-outline"
-              size={20}
-              color={
-                COLORS.mainText
-              }
-            />
+            {deletingId === medicine.id ? (
+              <ActivityIndicator
+                size="small"
+                color={COLORS.dangerRed}
+              />
+            ) : (
+              <Ionicons
+                name="trash-outline"
+                size={20}
+                color={
+                  COLORS.dangerRed
+                }
+              />
+            )}
 
           </Pressable>
 
@@ -4048,6 +4191,10 @@ const styles =
     paddingVertical: 4,
   },
 
+  doseActionButtonDisabled: {
+    opacity: 0.5,
+  },
+
 
   doseActionText: {
     fontFamily:
@@ -4165,6 +4312,10 @@ const styles =
     alignItems: 'center',
 
     justifyContent: 'center',
+  },
+
+  iconButtonDisabled: {
+    opacity: 0.5,
   },
 
 

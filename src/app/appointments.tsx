@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
@@ -12,6 +12,7 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -50,6 +51,7 @@ import {
 import { requestReminderPermission } from '../services/reminderPermission';
 import { registerWebPushWithBackend } from '../services/webPushService';
 import { apiFetch, parseJson } from '../services/api';
+import { confirmAction } from '../utils/confirm-action';
 
 import AppHeader from '../components/AppHeader';
 import WebDateTimeInput from '../components/web-date-time-input';
@@ -476,6 +478,13 @@ const [appointments, setAppointments] =
 
   const [toastMessage, setToastMessage] =
     useState('');
+
+  // Delete progress so the button responds instantly and cannot be
+  // double-submitted.
+  const [deletingId, setDeletingId] =
+    useState<string | null>(null);
+
+  const deleteInFlight = useRef<Set<string>>(new Set());
 
 
   // ==================================================
@@ -956,7 +965,23 @@ const [appointments, setAppointments] =
   const deleteAppointment = async (
     id: string
   ) => {
+    if (deleteInFlight.current.has(id)) return;
+
+    // Lock immediately so a second tap cannot open another confirm dialog.
+    deleteInFlight.current.add(id);
+
     try {
+      const confirmed = await confirmAction({
+        title: 'Delete Appointment',
+        message:
+          'Are you sure you want to delete this appointment? Its reminder will also be removed.',
+        confirmText: 'Delete',
+      });
+
+      if (!confirmed) return;
+
+      setDeletingId(id);
+
       const token = await AsyncStorage.getItem('authToken');
 
       if (!token) {
@@ -983,10 +1008,18 @@ const [appointments, setAppointments] =
         );
       }
 
-      // Cancel any scheduled reminders for this appointment.
-      await cancelAppointmentRemindersForAppointment(id);
+      // Cancel scheduled reminders, but never fail the delete over a local
+      // notification error.
+      try {
+        await cancelAppointmentRemindersForAppointment(id);
+      } catch (reminderError) {
+        console.log('Reminder cancel error:', reminderError);
+      }
 
-      await loadAppointments();
+      // Remove locally instead of re-fetching the whole list.
+      setAppointments((current) =>
+        current.filter((item) => item.id !== id)
+      );
 
       showToast('Appointment deleted');
     } catch (error) {
@@ -996,6 +1029,9 @@ const [appointments, setAppointments] =
           ? error.message
           : 'Unable to delete appointment'
       );
+    } finally {
+      deleteInFlight.current.delete(id);
+      setDeletingId(null);
     }
   };
 
@@ -1432,15 +1468,28 @@ const [appointments, setAppointments] =
                 appointment.id
               )
             }
-            style={styles.actionButton}
+            disabled={deletingId === appointment.id}
+            style={[
+              styles.actionButton,
+
+              deletingId === appointment.id &&
+                styles.actionButtonDisabled,
+            ]}
           >
-            <Ionicons
-              name="trash-outline"
-              size={18}
-              color={
-                COLORS.dangerRed
-              }
-            />
+            {deletingId === appointment.id ? (
+              <ActivityIndicator
+                size="small"
+                color={COLORS.dangerRed}
+              />
+            ) : (
+              <Ionicons
+                name="trash-outline"
+                size={18}
+                color={
+                  COLORS.dangerRed
+                }
+              />
+            )}
 
             <Text
               style={[
@@ -1451,7 +1500,9 @@ const [appointments, setAppointments] =
                 },
               ]}
             >
-              Delete
+              {deletingId === appointment.id
+                ? 'Deleting...'
+                : 'Delete'}
             </Text>
           </Pressable>
 
@@ -3200,6 +3251,10 @@ const styles = StyleSheet.create({
     gap: 5,
 
     paddingVertical: 5,
+  },
+
+  actionButtonDisabled: {
+    opacity: 0.5,
   },
 
 
