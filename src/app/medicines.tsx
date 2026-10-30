@@ -2460,67 +2460,65 @@ const deleteMedicine = async (id: string) => {
                       }
                     >
 
-                      {Platform.OS === 'web' ? (
-                        <WebDateTimeInput
-                          mode="time"
-                          value={row.time}
-                          onChange={(value) =>
-                            updateScheduleRow(
-                              index,
-                              'time',
-                              value
-                            )
-                          }
-                          placeholder="Select time"
-                          style={{
-                            flexShrink: 1,
-                            minWidth: 140,
-                            minHeight: 52,
-                            backgroundColor: '#E7F3F5',
-                            borderColor: '#C9E0E5',
-                          }}
-                        />
-                      ) : (
-                        <Pressable
-                          onPress={() => openTimePicker(index)}
+                      {/* ROW 1: time input + AM/PM selector */}
+                      <View style={styles.scheduleTimeRow}>
+                        {Platform.OS === 'web' ? (
+                          <WebDateTimeInput
+                            mode="time"
+                            value={row.time}
+                            onChange={(value) =>
+                              updateScheduleRow(
+                                index,
+                                'time',
+                                value
+                              )
+                            }
+                            placeholder="Select time"
+                            style={{
+                              minWidth: 140,
+                              minHeight: 52,
+                              backgroundColor: '#E7F3F5',
+                              borderColor: '#C9E0E5',
+                            }}
+                          />
+                        ) : (
+                          <Pressable
+                            onPress={() => openTimePicker(index)}
 
-                          style={[
-                            styles.input,
-                            styles.scheduleTimeInput,
-                            styles.pickerField,
-                          ]}
-                        >
-
-                          <Text
                             style={[
-                              styles.pickerFieldText,
-
-                              !row.time &&
-                                styles.pickerFieldPlaceholder,
+                              styles.input,
+                              styles.scheduleTimeInput,
+                              styles.pickerField,
                             ]}
                           >
-                            {row.time || 'Select time'}
-                          </Text>
 
-                          <Ionicons
-                            name="time-outline"
-                            size={20}
-                            color={
-                              row.time
-                                ? COLORS.primaryBlue
-                                : COLORS.secondaryText
-                            }
-                          />
+                            <Text
+                              style={[
+                                styles.pickerFieldText,
 
-                        </Pressable>
-                      )}
+                                !row.time &&
+                                  styles.pickerFieldPlaceholder,
+                              ]}
+                            >
+                              {row.time || 'Select time'}
+                            </Text>
 
+                            <Ionicons
+                              name="time-outline"
+                              size={20}
+                              color={
+                                row.time
+                                  ? COLORS.primaryBlue
+                                  : COLORS.secondaryText
+                              }
+                            />
 
-                      <View
-                        style={
-                          styles.scheduleQtyRemoveWrapper
-                        }
-                      >
+                          </Pressable>
+                        )}
+                      </View>
+
+                      {/* ROW 2: dose count input + remove button */}
+                      <View style={styles.scheduleQtyRemoveRow}>
 
                         <TextInput
                           value={
@@ -4405,7 +4403,6 @@ const styles =
 
     flexDirection: 'column',
 
-    justifyContent: 'space-between',
   },
 
 
@@ -4813,7 +4810,7 @@ const styles =
   scheduleRow: {
     flexDirection: 'row',
 
-    alignItems: 'center',
+    alignItems: 'flex-start',
 
     gap: 8,
 
@@ -4822,13 +4819,46 @@ const styles =
     flexWrap: 'wrap',
   },
 
+  // Row 1: time input occupies full width, wraps to its own line on narrow screens.
+  scheduleTimeRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    gap: 8,
+
+    flex: 1,
+
+    flexWrap: 'wrap',
+
+    marginBottom: 6,
+  },
+
+  // Row 2: dose count + remove button on their own line below the time input.
+  scheduleQtyRemoveRow: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'space-between',
+
+    gap: 8,
+
+    width: '100%',
+
+    flexWrap: 'wrap',
+  },
+
+
 
   scheduleTimeInput: {
     flex: 1,
 
     flexShrink: 1,
 
-    minWidth: 120,
+    minWidth: 160,
+
+    maxWidth: 260,
   },
 
 
@@ -4865,23 +4895,12 @@ const styles =
   },
 
 
-  scheduleQtyRemoveWrapper: {
-    flexDirection: 'row',
-
-    alignItems: 'center',
-
-    justifyContent: 'flex-end',
-
-    gap: 8,
-
-    flexShrink: 0,
-  },
-
-
   scheduleQtyInput: {
     width: 80,
 
     flexShrink: 0,
+
+    maxWidth: 100,
   },
 
 
