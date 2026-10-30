@@ -2516,53 +2516,61 @@ const deleteMedicine = async (id: string) => {
                       )}
 
 
-                      <TextInput
-                        value={
-                          row.quantity
-                        }
-
-                        onChangeText={(value) =>
-                          updateScheduleRow(
-                            index,
-                            'quantity',
-                            value
-                          )
-                        }
-
-                        placeholder="Qty"
-
-                        keyboardType="numeric"
-
-                        placeholderTextColor={
-                          COLORS.secondaryText
-                        }
-
-                        style={[
-                          styles.input,
-                          styles.scheduleQtyInput,
-                        ]}
-                      />
-
-
-                      <Pressable
-                        onPress={() =>
-                          removeScheduleRow(index)
-                        }
-
+                      <View
                         style={
-                          styles.scheduleRemoveButton
+                          styles.scheduleQtyRemoveWrapper
                         }
                       >
 
-                        <Ionicons
-                          name="close-outline"
-                          size={20}
-                          color={
-                            COLORS.missedText
+                        <TextInput
+                          value={
+                            row.quantity
                           }
+
+                          onChangeText={(value) =>
+                            updateScheduleRow(
+                              index,
+                              'quantity',
+                              value
+                            )
+                          }
+
+                          placeholder="Qty"
+
+                          keyboardType="numeric"
+
+                          placeholderTextColor={
+                            COLORS.secondaryText
+                          }
+
+                          style={[
+                            styles.input,
+                            styles.scheduleQtyInput,
+                          ]}
                         />
 
-                      </Pressable>
+
+                        <Pressable
+                          onPress={() =>
+                            removeScheduleRow(index)
+                          }
+
+                          style={
+                            styles.scheduleRemoveButton
+                          }
+                        >
+
+                          <Ionicons
+                            name="close-outline"
+                            size={20}
+                            color={
+                              COLORS.missedText
+                            }
+                          />
+
+                        </Pressable>
+
+                      </View>
 
                     </View>
                   )
@@ -4389,7 +4397,7 @@ const styles =
 
     maxWidth: 650,
 
-    maxHeight: '90%',
+    maxHeight: '85%',
 
     padding: 28,
 
@@ -4404,7 +4412,7 @@ const styles =
   modalMobile: {
     padding: 18,
 
-    maxHeight: '92%',
+    maxHeight: '87%',
   },
 
 
@@ -4454,7 +4462,7 @@ const styles =
 
     gap: 12,
 
-    paddingBottom: 5,
+    paddingBottom: 100,
   },
 
 
@@ -4857,15 +4865,32 @@ const styles =
   },
 
 
+  scheduleQtyRemoveWrapper: {
+    flexDirection: 'row',
+
+    alignItems: 'center',
+
+    justifyContent: 'flex-end',
+
+    gap: 8,
+
+    flexShrink: 0,
+  },
+
+
   scheduleQtyInput: {
-    width: 70,
+    width: 80,
+
+    flexShrink: 0,
   },
 
 
   scheduleRemoveButton: {
-    width: 34,
+    width: 36,
 
-    height: 34,
+    height: 36,
+
+    flexShrink: 0,
 
     alignItems: 'center',
 
